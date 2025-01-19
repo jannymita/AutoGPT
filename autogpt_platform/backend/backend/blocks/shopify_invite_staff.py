@@ -80,14 +80,14 @@ class ShopifyInviteStaffBlock(Block):
         # Load environment variables
         #encoded_cookie = os.getenv("SHOPIFY_INTEGRATION_STORE_COOKIE")
 
-        encoded_cookie = self.redis.get("SHOPIFY_INTEGRATION_STORE_COOKIE") | os.getenv("SHOPIFY_INTEGRATION_STORE_COOKIE")
+        encoded_cookie = self.redis.get("SHOPIFY_INTEGRATION_STORE_COOKIE")
         if not encoded_cookie:
             raise EnvironmentError("Environment variable SHOPIFY_INTEGRATION_STORE_COOKIE is missing.")
         
         cookie = base64.b64decode(encoded_cookie).decode("utf-8")
 
         #csrf_token = os.getenv("SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN")
-        csrf_token = self.redis.get("SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN") | os.getenv("SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN")
+        csrf_token = self.redis.get("SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN")
         if not csrf_token:
             raise EnvironmentError("Environment variable 'SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN' is not set.")
         
