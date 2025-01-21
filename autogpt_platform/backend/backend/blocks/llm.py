@@ -1,3 +1,4 @@
+import os
 import ast
 import logging
 from enum import Enum, EnumMeta
@@ -6,8 +7,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, List, Literal, NamedTuple
 
 from pydantic import SecretStr
-
-from backend.integrations.providers import ProviderName
 
 if TYPE_CHECKING:
     from enum import _EnumMemberT
@@ -31,13 +30,7 @@ from backend.util.text import TextFormatter
 logger = logging.getLogger(__name__)
 fmt = TextFormatter()
 
-LLMProviderName = Literal[
-    ProviderName.ANTHROPIC,
-    ProviderName.GROQ,
-    ProviderName.OLLAMA,
-    ProviderName.OPENAI,
-    ProviderName.OPEN_ROUTER,
-]
+LLMProviderName = Literal["anthropic", "groq", "openai", "ollama", "open_router"]
 AICredentials = CredentialsMetaInput[LLMProviderName, Literal["api_key"]]
 
 TEST_CREDENTIALS = APIKeyCredentials(
@@ -55,9 +48,26 @@ TEST_CREDENTIALS_INPUT = {
 }
 
 
+OPENAI_CREDENTIALS = APIKeyCredentials(
+    id="2eb0715e-479c-4923-8665-7dc49cac8cc9",
+    provider="openai",
+    api_key=SecretStr(os.getenv("OPENAI_API_KEY")),
+    title="Mock OpenAI API key",
+    expires_at=None,
+)
+OPENAI_CREDENTIALS_INPUT = {
+    "provider": OPENAI_CREDENTIALS.provider,
+    "id": OPENAI_CREDENTIALS.id,
+    "type": OPENAI_CREDENTIALS.type,
+    "title": OPENAI_CREDENTIALS.title,
+}
+
+
 def AICredentialsField() -> AICredentials:
     return CredentialsField(
         description="API key for the LLM provider.",
+        provider=["anthropic", "groq", "openai", "ollama", "open_router"],
+        supported_credential_types={"api_key"},
         discriminator="model",
         discriminator_mapping={
             model.value: model.metadata.provider for model in LlmModel
@@ -114,9 +124,9 @@ class LlmModel(str, Enum, metaclass=LlmModelMeta):
     OLLAMA_LLAMA3_2 = "llama3.2"
     OLLAMA_LLAMA3_8B = "llama3"
     OLLAMA_LLAMA3_405B = "llama3.1:405b"
-    OLLAMA_DOLPHIN = "dolphin-mistral:latest"
     # OpenRouter models
     GEMINI_FLASH_1_5_8B = "google/gemini-flash-1.5"
+    GEMINI_FLASH_1_5_EXP = "google/gemini-flash-1.5-exp"
     GROK_BETA = "x-ai/grok-beta"
     MISTRAL_NEMO = "mistralai/mistral-nemo"
     COHERE_COMMAND_R_08_2024 = "cohere/command-r-08-2024"
@@ -126,14 +136,6 @@ class LlmModel(str, Enum, metaclass=LlmModelMeta):
     PERPLEXITY_LLAMA_3_1_SONAR_LARGE_128K_ONLINE = (
         "perplexity/llama-3.1-sonar-large-128k-online"
     )
-    QWEN_QWQ_32B_PREVIEW = "qwen/qwq-32b-preview"
-    NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B = "nousresearch/hermes-3-llama-3.1-405b"
-    NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B = "nousresearch/hermes-3-llama-3.1-70b"
-    AMAZON_NOVA_LITE_V1 = "amazon/nova-lite-v1"
-    AMAZON_NOVA_MICRO_V1 = "amazon/nova-micro-v1"
-    AMAZON_NOVA_PRO_V1 = "amazon/nova-pro-v1"
-    MICROSOFT_WIZARDLM_2_8X22B = "microsoft/wizardlm-2-8x22b"
-    GRYPHE_MYTHOMAX_L2_13B = "gryphe/mythomax-l2-13b"
 
     @property
     def metadata(self) -> ModelMetadata:
@@ -169,8 +171,8 @@ MODEL_METADATA = {
     LlmModel.OLLAMA_LLAMA3_2: ModelMetadata("ollama", 8192),
     LlmModel.OLLAMA_LLAMA3_8B: ModelMetadata("ollama", 8192),
     LlmModel.OLLAMA_LLAMA3_405B: ModelMetadata("ollama", 8192),
-    LlmModel.OLLAMA_DOLPHIN: ModelMetadata("ollama", 32768),
     LlmModel.GEMINI_FLASH_1_5_8B: ModelMetadata("open_router", 8192),
+    LlmModel.GEMINI_FLASH_1_5_EXP: ModelMetadata("open_router", 8192),
     LlmModel.GROK_BETA: ModelMetadata("open_router", 8192),
     LlmModel.MISTRAL_NEMO: ModelMetadata("open_router", 4000),
     LlmModel.COHERE_COMMAND_R_08_2024: ModelMetadata("open_router", 4000),
@@ -180,14 +182,6 @@ MODEL_METADATA = {
     LlmModel.PERPLEXITY_LLAMA_3_1_SONAR_LARGE_128K_ONLINE: ModelMetadata(
         "open_router", 8192
     ),
-    LlmModel.QWEN_QWQ_32B_PREVIEW: ModelMetadata("open_router", 4000),
-    LlmModel.NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B: ModelMetadata("open_router", 4000),
-    LlmModel.NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B: ModelMetadata("open_router", 4000),
-    LlmModel.AMAZON_NOVA_LITE_V1: ModelMetadata("open_router", 4000),
-    LlmModel.AMAZON_NOVA_MICRO_V1: ModelMetadata("open_router", 4000),
-    LlmModel.AMAZON_NOVA_PRO_V1: ModelMetadata("open_router", 4000),
-    LlmModel.MICROSOFT_WIZARDLM_2_8X22B: ModelMetadata("open_router", 4000),
-    LlmModel.GRYPHE_MYTHOMAX_L2_13B: ModelMetadata("open_router", 4000),
 }
 
 for model in LlmModel:
@@ -218,7 +212,7 @@ class AIStructuredResponseGeneratorBlock(Block):
         )
         model: LlmModel = SchemaField(
             title="LLM Model",
-            default=LlmModel.GPT4_TURBO,
+            default=LlmModel.GPT4O,
             description="The language model to use for answering the prompt.",
             advanced=False,
         )
@@ -246,12 +240,6 @@ class AIStructuredResponseGeneratorBlock(Block):
             advanced=True,
             default=None,
             description="The maximum number of tokens to generate in the chat completion.",
-        )
-
-        ollama_host: str = SchemaField(
-            advanced=True,
-            default="localhost:11434",
-            description="Ollama host for local  models",
         )
 
     class Output(BlockSchema):
@@ -299,7 +287,6 @@ class AIStructuredResponseGeneratorBlock(Block):
         prompt: list[dict],
         json_format: bool,
         max_tokens: int | None = None,
-        ollama_host: str = "localhost:11434",
     ) -> tuple[str, int, int]:
         """
         Args:
@@ -308,7 +295,6 @@ class AIStructuredResponseGeneratorBlock(Block):
             prompt: The prompt to send to the LLM.
             json_format: Whether the response should be in JSON format.
             max_tokens: The maximum number of tokens to generate in the chat completion.
-            ollama_host: The host for ollama to use
 
         Returns:
             The response from the LLM.
@@ -398,10 +384,9 @@ class AIStructuredResponseGeneratorBlock(Block):
                 response.usage.completion_tokens if response.usage else 0,
             )
         elif provider == "ollama":
-            client = ollama.Client(host=ollama_host)
             sys_messages = [p["content"] for p in prompt if p["role"] == "system"]
             usr_messages = [p["content"] for p in prompt if p["role"] != "system"]
-            response = client.generate(
+            response = ollama.generate(
                 model=llm_model.value,
                 prompt=f"{sys_messages}\n\n{usr_messages}",
                 stream=False,
@@ -501,7 +486,6 @@ class AIStructuredResponseGeneratorBlock(Block):
                     llm_model=llm_model,
                     prompt=prompt,
                     json_format=bool(input_data.expected_format),
-                    ollama_host=input_data.ollama_host,
                     max_tokens=input_data.max_tokens,
                 )
                 self.merge_stats(
@@ -566,7 +550,7 @@ class AITextGeneratorBlock(Block):
         )
         model: LlmModel = SchemaField(
             title="LLM Model",
-            default=LlmModel.GPT4_TURBO,
+            default=LlmModel.GPT4O,
             description="The language model to use for answering the prompt.",
             advanced=False,
         )
@@ -585,11 +569,6 @@ class AITextGeneratorBlock(Block):
             advanced=False,
             default={},
             description="Values used to fill in the prompt. The values can be used in the prompt by putting them in a double curly braces, e.g. {{variable_name}}.",
-        )
-        ollama_host: str = SchemaField(
-            advanced=True,
-            default="localhost:11434",
-            description="Ollama host for local  models",
         )
         max_tokens: int | None = SchemaField(
             advanced=True,
@@ -654,7 +633,7 @@ class AITextSummarizerBlock(Block):
         )
         model: LlmModel = SchemaField(
             title="LLM Model",
-            default=LlmModel.GPT4_TURBO,
+            default=LlmModel.GPT4O,
             description="The language model to use for summarizing the text.",
         )
         focus: str = SchemaField(
@@ -680,11 +659,6 @@ class AITextSummarizerBlock(Block):
             default=100,
             description="The number of overlapping tokens between chunks to maintain context.",
             ge=0,
-        )
-        ollama_host: str = SchemaField(
-            advanced=True,
-            default="localhost:11434",
-            description="Ollama host for local  models",
         )
 
     class Output(BlockSchema):
@@ -810,12 +784,15 @@ class AITextSummarizerBlock(Block):
 
 class AIConversationBlock(Block):
     class Input(BlockSchema):
-        messages: List[Message] = SchemaField(
-            description="List of messages in the conversation.", min_length=1
+        # CHANGED: Now just a list of strings
+        messages: List[str] = SchemaField(
+            description="List of messages (strings) in the conversation.",
+            min_length=1
         )
+        # Other fields remain the same
         model: LlmModel = SchemaField(
             title="LLM Model",
-            default=LlmModel.GPT4_TURBO,
+            default=LlmModel.GPT4O,
             description="The language model to use for the conversation.",
         )
         credentials: AICredentials = AICredentialsField()
@@ -823,11 +800,6 @@ class AIConversationBlock(Block):
             advanced=True,
             default=None,
             description="The maximum number of tokens to generate in the chat completion.",
-        )
-        ollama_host: str = SchemaField(
-            advanced=True,
-            default="localhost:11434",
-            description="Ollama host for local  models",
         )
 
     class Output(BlockSchema):
@@ -839,19 +811,15 @@ class AIConversationBlock(Block):
     def __init__(self):
         super().__init__(
             id="32a87eab-381e-4dd4-bdb8-4c47151be35a",
-            description="Advanced LLM call that takes a list of messages and sends them to the language model.",
+            description="Advanced LLM call that takes a list of messages (now only strings) and sends them to the language model.",
             categories={BlockCategory.AI},
             input_schema=AIConversationBlock.Input,
             output_schema=AIConversationBlock.Output,
             test_input={
+                # test_input now only uses string messages
                 "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {
-                        "role": "assistant",
-                        "content": "The Los Angeles Dodgers won the World Series in 2020.",
-                    },
-                    {"role": "user", "content": "Where was it played?"},
+                    "Who won the world series in 2020?",
+                    "Where was it played?"
                 ],
                 "model": LlmModel.GPT4_TURBO,
                 "credentials": TEST_CREDENTIALS_INPUT,
@@ -879,12 +847,19 @@ class AIConversationBlock(Block):
     def run(
         self, input_data: Input, *, credentials: APIKeyCredentials, **kwargs
     ) -> BlockOutput:
+        # Convert each string in input_data.messages into a Message object,
+        # hardcoding the role to USER.
+        conversation_history = [
+            Message(role=MessageRole.USER, content=msg) for msg in input_data.messages
+        ]
+
+        # Pass these Message objects to AIStructuredResponseGeneratorBlock
         response = self.llm_call(
             AIStructuredResponseGeneratorBlock.Input(
                 prompt="",
                 credentials=input_data.credentials,
                 model=input_data.model,
-                conversation_history=input_data.messages,
+                conversation_history=conversation_history,
                 max_tokens=input_data.max_tokens,
                 expected_format={},
             ),
@@ -892,7 +867,6 @@ class AIConversationBlock(Block):
         )
 
         yield "response", response
-
 
 class AIListGeneratorBlock(Block):
     class Input(BlockSchema):
@@ -910,7 +884,7 @@ class AIListGeneratorBlock(Block):
         )
         model: LlmModel = SchemaField(
             title="LLM Model",
-            default=LlmModel.GPT4_TURBO,
+            default=LlmModel.GPT4O,
             description="The language model to use for generating the list.",
             advanced=True,
         )
@@ -925,11 +899,6 @@ class AIListGeneratorBlock(Block):
             advanced=True,
             default=None,
             description="The maximum number of tokens to generate in the chat completion.",
-        )
-        ollama_host: str = SchemaField(
-            advanced=True,
-            default="localhost:11434",
-            description="Ollama host for local  models",
         )
 
     class Output(BlockSchema):
@@ -1082,7 +1051,6 @@ class AIListGeneratorBlock(Block):
                         credentials=input_data.credentials,
                         model=input_data.model,
                         expected_format={},  # Do not use structured response
-                        ollama_host=input_data.ollama_host,
                     ),
                     credentials=credentials,
                 )

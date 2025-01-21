@@ -1,0 +1,144 @@
+curl --location 'https://auto-gpt.3tn.tech/service-rest/api/graphs/shopify' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZTk2NmRlOS03OGNmLTRiYjUtYjAxZC04MzdjYjcxMzU2YWEiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzY2ODk0NTQxLCJpYXQiOjE3MzUzNTg1NDEsImVtYWlsIjoiZHd2MTE2NjVAa2lzb3EuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJlbWFpbCI6ImR3djExNjY1QGtpc29xLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwicGhvbmVfdmVyaWZpZWQiOmZhbHNlLCJzdWIiOiI1ZTk2NmRlOS03OGNmLTRiYjUtYjAxZC04MzdjYjcxMzU2YWEifSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTczNTM1ODU0MX1dLCJzZXNzaW9uX2lkIjoiNDYxNWI1MjUtODZiZi00MDU2LThiNDEtNzg4YmJmY2RkMzg0IiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.bVlfDPzOGwcsbBYNx5PN6EBeqvPmokXcQl6LGm7JaqU' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "shop_name": "3tn-shop-v20251518",
+    "user_prompt": "Use cool theme",
+    "shopify_user": {
+        "email": "jannymita9493+1@gmail.com",
+        "first_name": "Tuan",
+        "last_name": "Nguyen"
+    },
+    "graph": {
+        "version": 1,
+        "is_active": true,
+        "is_template": false,
+        "name": "",
+        "description": "",
+        "nodes": [
+            {
+                "id": "46220caa-33d8-4f41-8d88-d1a5e3c9598f",
+                "block_id": "0f173175-176b-4648-92c5-e6eb001f1bfc",
+                "input_default": {
+                    "shop_name": "3tn-shop-v20251518"
+                },
+                "metadata": {
+                    "position": {
+                        "x": 682,
+                        "y": 331.25
+                    }
+                },
+                "input_links": [],
+                "output_links": [
+                    {
+                        "id": "9ed6643c-ec8a-4bce-9a06-ff5e55192afe",
+                        "source_id": "46220caa-33d8-4f41-8d88-d1a5e3c9598f",
+                        "sink_id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                        "source_name": "shop_name",
+                        "sink_name": "shop_name",
+                        "is_static": false
+                    }
+                ],
+                "webhook_id": null,
+                "graph_id": "a4759107-f4c9-41ae-9e03-0b1412a7a09c",
+                "graph_version": 3,
+                "webhook": null
+            },
+            {
+                "id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                "block_id": "f0306d27-f7c2-4b7c-89b2-6b2811048443",
+                "input_default": {
+                    "user_prompt": "Use a beautiful theme"
+                },
+                "metadata": {
+                    "position": {
+                        "x": 1234.5000762939453,
+                        "y": 350
+                    }
+                },
+                "input_links": [
+                    {
+                        "id": "9ed6643c-ec8a-4bce-9a06-ff5e55192afe",
+                        "source_id": "46220caa-33d8-4f41-8d88-d1a5e3c9598f",
+                        "sink_id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                        "source_name": "shop_name",
+                        "sink_name": "shop_name",
+                        "is_static": false
+                    }
+                ],
+                "output_links": [
+                    {
+                        "id": "ff664834-b374-4645-8bef-d06543440476",
+                        "source_id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                        "sink_id": "0aef7a9b-3ef1-4099-95f4-44359be1030d",
+                        "source_name": "shop_name",
+                        "sink_name": "shop_name",
+                        "is_static": false
+                    }
+                ],
+                "webhook_id": null,
+                "graph_id": "a4759107-f4c9-41ae-9e03-0b1412a7a09c",
+                "graph_version": 3,
+                "webhook": null
+            },
+            {
+                "id": "0aef7a9b-3ef1-4099-95f4-44359be1030d",
+                "block_id": "e2f0ed4c-620a-4221-a2a3-c6787a97fa61",
+                "input_default": {
+                    "email": "annonymous.user@3tn.tech",
+                    "first_name": "Annonymous",
+                    "last_name": "User"
+                },
+                "metadata": {
+                    "position": {
+                        "x": 1794.5000762939453,
+                        "y": 350
+                    }
+                },
+                "input_links": [
+                    {
+                        "id": "ff664834-b374-4645-8bef-d06543440476",
+                        "source_id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                        "sink_id": "0aef7a9b-3ef1-4099-95f4-44359be1030d",
+                        "source_name": "shop_name",
+                        "sink_name": "shop_name",
+                        "is_static": false
+                    }
+                ],
+                "output_links": [],
+                "webhook_id": null,
+                "graph_id": "a4759107-f4c9-41ae-9e03-0b1412a7a09c",
+                "graph_version": 3,
+                "webhook": null
+            }
+        ],
+        "links": [
+            {
+                "id": "9ed6643c-ec8a-4bce-9a06-ff5e55192afe",
+                "source_id": "46220caa-33d8-4f41-8d88-d1a5e3c9598f",
+                "sink_id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                "source_name": "shop_name",
+                "sink_name": "shop_name",
+                "is_static": false
+            },
+            {
+                "id": "ff664834-b374-4645-8bef-d06543440476",
+                "source_id": "6f4ee7c9-8d8f-4672-ba02-da96079d42fe",
+                "sink_id": "0aef7a9b-3ef1-4099-95f4-44359be1030d",
+                "source_name": "shop_name",
+                "sink_name": "shop_name",
+                "is_static": false
+            }
+        ],
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+}'

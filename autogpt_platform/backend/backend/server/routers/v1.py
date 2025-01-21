@@ -1,14 +1,17 @@
 import asyncio
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Annotated, Any, Sequence
+from typing import TYPE_CHECKING, Annotated, Any, Sequence, Dict
 
 import pydantic
 from autogpt_libs.auth.middleware import auth_middleware
 from autogpt_libs.feature_flag.client import feature_flag
 from autogpt_libs.utils.cache import thread_cached
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing_extensions import Optional, TypedDict
+from pydantic import BaseModel
+import os
+from datetime import datetime, timedelta
 
 import backend.data.block
 import backend.server.integrations.router
@@ -46,6 +49,7 @@ from backend.server.model import (
 from backend.server.utils import get_user_id
 from backend.util.service import get_service_client
 from backend.util.settings import Settings
+from backend.data.redis import get_redis_async
 
 if TYPE_CHECKING:
     from backend.data.model import Credentials
@@ -200,6 +204,40 @@ async def get_graph_all_versions(
 async def create_new_graph(
     create_graph: CreateGraph, user_id: Annotated[str, Depends(get_user_id)]
 ) -> graph_db.GraphModel:
+    return await do_create_graph(create_graph, is_template=False, user_id=user_id)
+
+
+class ShopifyUser(pydantic.BaseModel):
+    email: str
+    first_name: str
+    last_name: str
+
+class CreateShopifyGraph(CreateGraph):
+    shop_name: str
+    user_prompt: str
+    shopify_user: ShopifyUser
+
+from backend.blocks.shopify_intialization import ShopifyInitializeBlock
+from backend.blocks.shopify_install_themes import ShopifyInstallThemeBlock
+from backend.blocks.shopify_invite_staff import ShopifyInviteStaffBlock
+
+@v1_router.post(
+    path="/graphs/shopify", tags=["graphs"], dependencies=[Depends(auth_middleware)]
+)
+async def create_new_shopif_graph(
+    create_graph: CreateShopifyGraph, user_id: Annotated[str, Depends(get_user_id)]
+) -> graph_db.GraphModel:
+    for node in create_graph.graph.nodes:
+        if node.block_id == ShopifyInitializeBlock.block_id:
+            node.input_default["shop_name"] = create_graph.shop_name
+        if node.block_id == ShopifyInstallThemeBlock.block_id:
+            node.input_default["user_prompt"] = create_graph.user_prompt
+        if node.block_id == ShopifyInviteStaffBlock.block_id:
+            node.input_default["email"] = create_graph.shopify_user.email
+            node.input_default["first_name"] = create_graph.shopify_user.first_name
+            node.input_default["last_name"] = create_graph.shopify_user.last_name
+    if not create_graph.graph.name:
+        create_graph.graph.name = "Shopify Initialization " + create_graph.shop_name
     return await do_create_graph(create_graph, is_template=False, user_id=user_id)
 
 
@@ -668,3 +706,129 @@ async def update_permissions(
     except APIKeyError as e:
         logger.error(f"Failed to update API key permissions: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+########################################################
+##################### Redis ############################
+########################################################
+
+class ShopifyIntegrationParams(BaseModel):
+    SHOPIFY_INTEGRATION_STORE_COOKIE: str
+    SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN: str
+
+@v1_router.post(
+    path="/shopify/integration/cookie",
+)
+async def store_shopify_integration_cookie(
+    params: ShopifyIntegrationParams,
+    secret: str = Query(...),
+):
+    secret_token = os.getenv("SHOPIFY_INTEGRATION_SECRET_TOKEN")
+    expire_duration = int(os.getenv("SHOPIFY_INTEGRATION_COOKIE_EXPIRE_DURATION", 18))
+
+    if secret != secret_token:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    expiration_time = datetime.utcnow() + timedelta(hours=expire_duration)    
+    redis = await get_redis_async()
+    await redis.set(
+        "SHOPIFY_INTEGRATION_STORE_COOKIE", 
+        params.SHOPIFY_INTEGRATION_STORE_COOKIE, 
+        ex=expire_duration * 3600
+    )
+    await redis.set(
+        "SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN", 
+        params.SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN, 
+        ex=expire_duration * 3600
+    )
+    return {
+        'SHOPIFY_INTEGRATION_STORE_COOKIE': expiration_time.isoformat() + "Z",
+        'SHOPIFY_INTEGRATION_STORE_CSRF_TOKEN': expiration_time.isoformat() + "Z"
+    }
+
+from backend.util.request import requests
+from groq._utils._utils import quote
+from backend.blocks.llm import AIConversationBlock, OPENAI_CREDENTIALS, OPENAI_CREDENTIALS_INPUT
+
+@v1_router.post(
+    path="/3tn/search",
+)
+async def search_the_web(
+    params: dict[str, str] = Body(...),
+):
+    jina_api_key = os.getenv("JINA_API_KEY")
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+
+    if not jina_api_key or not openai_api_key:
+        raise HTTPException(status_code=500, detail="API keys not found")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {jina_api_key}",
+    }
+
+    user_query = params.get("query", "") or params.get("user_query", "")
+    if not user_query:
+        raise HTTPException(status_code=400, detail="No query provided")
+
+    encoded_query = quote(user_query)  
+    url = f"https://s.jina.ai/{encoded_query}"
+    response = requests.get(url, headers=headers)
+    logger.info(f"Jina response: {response.text[:100]}...")
+
+    user_prompt = params.get("user_prompt", "Please help me summarize this text:")
+    block = AIConversationBlock()
+    input = AIConversationBlock.Input(
+        messages=[user_prompt, response.text],
+        credentials=OPENAI_CREDENTIALS_INPUT,
+    )
+
+    output = block.run(input_data=input, credentials=OPENAI_CREDENTIALS)
+    return output
+
+
+from backend.blocks.gmail import GmailBlock
+
+@v1_router.post(
+    path="/3tn/gmail",
+)
+async def send_gmail(
+    params: dict[str, str] = Body(...),
+):
+    email = params.get("email", "")
+    access_token = params.get("access_token", "")
+    if not email or not access_token:
+        raise HTTPException(status_code=400, detail="No email or access token provided")
+    
+    block = GmailBlock()
+    input = GmailBlock.Input(
+        email=email,
+        subject_text=params.get("subject_text", "AutoGPT Notification"),
+        body_text=params.get("body_text", "Sending by AutoGPT"),
+        access_token=access_token,
+    )
+
+    output = block.run(input_data=input)
+    return output
+
+from backend.blocks.twitter import PostTwitterTweetBlock
+
+@v1_router.post(
+    path="/3tn/twitter/post",
+)
+async def post_to_twitter(
+    params: dict[str, str] = Body(...),
+):
+    post_content = params.get("post_content", "")
+    access_token = params.get("access_token", "")
+    if not post_content or not access_token:
+        raise HTTPException(status_code=400, detail="No content or access token provided")
+    
+    block = PostTwitterTweetBlock()
+    input = PostTwitterTweetBlock.Input(
+        post_content=post_content,
+        access_token=access_token,
+    )
+
+    output = block.run(input_data=input)
+    return output

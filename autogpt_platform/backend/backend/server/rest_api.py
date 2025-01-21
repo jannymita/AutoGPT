@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import typing
+import os
 
 import fastapi
 import fastapi.responses
@@ -66,6 +67,7 @@ app = fastapi.FastAPI(
     version="0.1",
     lifespan=lifespan_context,
     docs_url=docs_url,
+    root_path="/service-rest",
 )
 
 
