@@ -130,8 +130,6 @@ class CSVBlock(Block):
             file_name = input_data.file_name  # This will use the default value if not provided
             if not csv_content:
                 raise ValueError("CSV content is required")
-            
-            print("input =====================================================>", csv_content)
 
             # Call the csv_execute method and get the result
             result = self.csv_excute(csv_content, file_name)
