@@ -21,6 +21,7 @@ class ShopifyProductCreateBlock(Block):
     class Output(BlockSchema):
         shop_name: str = SchemaField(description="The shop that invited staff")
         products: list[dict[str, Any]] = SchemaField(description="List of products created")
+        productIds: list[str] = SchemaField(description="List of product IDs created")
 
     def __init__(self):
         super().__init__(
@@ -35,6 +36,7 @@ class ShopifyProductCreateBlock(Block):
             test_output=[
                 ("shop_name", "3tn-demo"),
                 ("products", []),
+                ("productIds", []),
             ],
         )
 
@@ -57,6 +59,8 @@ class ShopifyProductCreateBlock(Block):
         if not location:
             raise ValueError("Could not find location")
         
+        productIds = []
+        
         products = self.parse_products(input_data.products)
         for item in products:
             product = self.create_product(item)
@@ -69,9 +73,11 @@ class ShopifyProductCreateBlock(Block):
             inventory_items = self.get_inventory_items(product["id"])
             item["inventory_items_tracked"] = self.track_inventory_items(inventory_items)
             item["inventory_items_changes"] = self.update_inventory_items(inventory_items, location["id"], item["quantity_maps"])
+            productIds.append(product["id"])
 
         yield "shop_name", input_data.shop_name
         yield "products", products
+        yield "productIds", productIds
 
     def get_location(self) -> dict[str, str]:
         query = "query { locations(first: 1) { nodes { id name address { address1 city province country zip } isActive fulfillsOnlineOrders } } }"
@@ -94,12 +100,14 @@ class ShopifyProductCreateBlock(Block):
         products = {}
         
         for item in items: 
+
             title = item.get("Title", "")
             if not title: continue
 
             product = {
                 "title": item.get("Title", ""),
                 "description": item.get("Description", ""),
+                "tags": item.get("Tags", "").split(",") if item.get("Tags", "") else [],
                 "variants": [],
                 "options": {},
                 "quantity_maps": {}
@@ -134,12 +142,13 @@ class ShopifyProductCreateBlock(Block):
         return list(products.values())
     
     def create_product(self, item: dict[str, Any]) -> dict[str, str]:
-        query = "mutation productCreate($input: ProductInput!) {  productCreate(    input: $input  ) {    product {      id      title      options {        id        name        values      }    }    userErrors {      field      message    }  }}"
 
+        query = "mutation productCreate($input: ProductInput!) {  productCreate(    input: $input  ) {    product {      id      title      options {        id        name        values      }    }    userErrors {      field      message    }  }}"
         params = {
             "input": {
                 "title": item.get("title", ""),
                 "descriptionHtml": item.get("description", ""),
+                "tags": item.get("tags", []),
                 "productOptions": item.get("options", []),
             }
         }
@@ -181,7 +190,7 @@ class ShopifyProductCreateBlock(Block):
         self, 
         item: dict[str, Any], 
         product: dict[str, Any], 
-        existing_variants: list[dict[str, str]]
+        existing_variants: list[dict[str, str]],
     ) -> list[dict[str, str]]:
         existing_variant_title = [v["title"] for v in existing_variants]
 
