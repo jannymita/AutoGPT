@@ -3,6 +3,9 @@ from typing import Any
 import base64
 import json
 import re
+import json
+import csv
+import io
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
@@ -43,6 +46,14 @@ class GSpreadsheetBlock(Block):
         )
 
     @staticmethod
+    def extract_spreadsheet_id(spreadsheet_source: str) -> str:
+        pattern = r"https://docs\.google\.com/spreadsheets/d/([a-zA-Z0-9-_]+)/"
+        match = re.search(pattern, spreadsheet_source)
+        if match:
+            return match.group(1)
+        return spreadsheet_source
+    
+    @staticmethod
     def read_spreadsheet(spreadsheet_id: str, range: str) -> list[list[str]]:
         sa_base64 = os.getenv("GOOGLE_SPREADSHEET_SERVICE_ACCOUNT")
         if not sa_base64:
@@ -64,7 +75,7 @@ class GSpreadsheetBlock(Block):
     
     @staticmethod 
     def parse_spreadsheet_source(spreadsheet_source: str) -> str:
-        pattern = r"https://docs\.google\.com/spreadsheets/d/([a-zA-Z0-9-_]+)/"
+        pattern = r"https://docs\.google\.com/spreadsheets/d/([a-zA-Z0-9-_]+)"
         match = re.search(pattern, spreadsheet_source)
         if match:
             return match.group(1)
@@ -72,7 +83,8 @@ class GSpreadsheetBlock(Block):
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
         try:
-            data = self.read_spreadsheet(input_data.spreadsheet_id, input_data.range)
+            spreadsheet_id = self.extract_spreadsheet_id(input_data.spreadsheet_id)
+            data = self.read_spreadsheet(spreadsheet_id, input_data.range)
             output_data = []
             if data:
                 headers = data[0]
@@ -80,4 +92,78 @@ class GSpreadsheetBlock(Block):
                     output_data.append({headers[i]: value for i, value in enumerate(row)})
             yield "data", output_data
         except Exception as e:
-            yield "error", f"An error occurred: {e}"   
+            yield "error", f"An error occurred: {e}"  
+
+class GSpreadsheetGenerationBlock(Block):
+    scopes: list[str] = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+
+    class Input(BlockSchema):
+        csv_text: str = SchemaField(
+            description="CSV formatted text where the first row is the header.",
+        )
+
+    class Output(BlockSchema):
+        spreadsheet_url: str = SchemaField(description="URL of the created spreadsheet")
+        error: str = SchemaField(
+            description="Error message if spreadsheet creation failed"
+        )
+
+    def __init__(self):
+        super().__init__(
+            id="1a2b3c4d-5678-90ab-cdef-1234567890ab",
+            description="This block generates a Google Sheet from CSV text and makes it publicly accessible.",
+            categories={BlockCategory.DATA},
+            input_schema=GSpreadsheetGenerationBlock.Input,
+            output_schema=GSpreadsheetGenerationBlock.Output,
+            test_input={
+                "csv_text": "Name, Age, Country\nJohn, 25, USA\nAlice, 30, Canada\nBob, 22, UK"
+            },
+            test_output=[("spreadsheet_url", ""), ("error", "")],
+        )
+
+    @staticmethod
+    def create_public_spreadsheet_from_csv(csv_text: str) -> str:
+        sa_base64 = os.getenv("GOOGLE_SPREADSHEET_SERVICE_ACCOUNT")
+        if not sa_base64:
+            raise Exception("GOOGLE_SPREADSHEET_SERVICE_ACCOUNT is not set")
+
+        sa_json = base64.b64decode(sa_base64).decode("utf-8")
+        service_account_info = json.loads(sa_json)
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=GSpreadsheetGenerationBlock.scopes,
+        )
+
+        service = build("sheets", "v4", credentials=credentials)
+        drive_service = build("drive", "v3", credentials=credentials)
+
+        spreadsheet = service.spreadsheets().create(
+            body={"properties": {"title": "New Public Spreadsheet"}}
+        ).execute()
+
+        spreadsheet_id = spreadsheet["spreadsheetId"]
+        spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+
+        csv_reader = csv.reader(io.StringIO(csv_text))
+        data = [row for row in csv_reader]
+
+        service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range="Sheet1!A1",
+            valueInputOption="RAW",
+            body={"values": data}
+        ).execute()
+
+        drive_service.permissions().create(
+            fileId=spreadsheet_id,
+            body={"type": "anyone", "role": "reader"},
+        ).execute()
+
+        return spreadsheet_url
+
+    def run(self, input_data: Input, **kwargs) -> BlockOutput:
+        try:
+            spreadsheet_url = self.create_public_spreadsheet_from_csv(input_data.csv_text)
+            yield "spreadsheet_url", spreadsheet_url
+        except Exception as e:
+            yield "error", f"An error occurred: {e}"
