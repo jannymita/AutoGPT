@@ -100,17 +100,19 @@ class ShopifyProductCreateBlock(Block):
             product = {
                 "title": item.get("Title", ""),
                 "description": item.get("Description", ""),
+                "product_type": item.get("Type", ""),
                 "variants": [],
                 "options": {},
                 "quantity_maps": {}
             } if title not in products else products[title]
 
-            variant = {"price": item.get("Price", 0), "title": "", "values": []}
+            variant = {"price": item.get("Price", 0), "title": "", "image_url": item.get("Image Url", ""),"values": []}
             variant_title = []
+
             for key, value in item.items():
+
                 if key.startswith("Variant"):
                     variant_title.append(value)
-
                     option = key.split(":")[-1].strip()
                     
                     variant["values"].append({"name": value, "option": option})
@@ -140,6 +142,7 @@ class ShopifyProductCreateBlock(Block):
             "input": {
                 "title": item.get("title", ""),
                 "descriptionHtml": item.get("description", ""),
+                "productType": item.get("product_type", ""),
                 "productOptions": item.get("options", []),
             }
         }
@@ -185,11 +188,12 @@ class ShopifyProductCreateBlock(Block):
     ) -> list[dict[str, str]]:
         existing_variant_title = [v["title"] for v in existing_variants]
 
-        query = "mutation createProductVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkCreate(productId: $productId, variants: $variants) { productVariants { id title price selectedOptions { name value } } userErrors { field message } } }"
+        query = "mutation createProductVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!, $media: [CreateMediaInput!]) { productVariantsBulkCreate(productId: $productId, variants: $variants, media: $media) { productVariants { id title price selectedOptions { name value } } userErrors { field message } } }"
 
         params = {
             "productId": product["id"],
-            "variants": []
+            "variants": [],
+            "media": [],
         }
 
         for item_variant in item["variants"]:
@@ -206,6 +210,14 @@ class ShopifyProductCreateBlock(Block):
                     })
 
                 params["variants"].append(variant)
+
+                image_url = item_variant.get("image_url", "")
+                if image_url:
+                    params["media"].append({
+                        "originalSource": image_url,
+                        "alt": item_variant.get("title", ""),
+                        "mediaContentType": "IMAGE",
+                    })
                     
         # no new variants
         if not params["variants"]:
@@ -214,8 +226,10 @@ class ShopifyProductCreateBlock(Block):
         response = shopify.GraphQL().execute(query, params)
 
         raw = json.loads(response)
-        data = raw["data"]
+        if "data" not in raw:
+            raise ValueError("Could not create product variants", response, query, params)
 
+        data = raw["data"]
         errors = data.get("productVariantsBulkCreate", {}).get("userErrors", {})
         if errors:
             raise ValueError("Could not create product variants because of errors", errors, params, existing_variants)
