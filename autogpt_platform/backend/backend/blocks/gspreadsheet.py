@@ -36,7 +36,7 @@ class GSpreadsheetBlock(Block):
             output_schema=GSpreadsheetBlock.Output,
             test_input={
                 "spreadsheet_id": "1lb877lBEbTuuHytD75VWVCunkCGU_DdFwTbsNU0yi1Y",
-                "range": "Sheet1!A1:F100",
+                "range": "Sheet1!A1:AL101",
             },
             test_output=[("data", [])],
             test_mock={"read_spreadsheet": lambda *args, **kwargs: "OK"},
