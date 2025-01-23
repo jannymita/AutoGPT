@@ -43,6 +43,12 @@ RUN poetry config virtualenvs.create false \
 
 FROM python:3.11.10-slim-bookworm AS server_dependencies
 
+# Install Git
+RUN apt-get update && apt-get install -y git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+
 WORKDIR /app
 
 ENV POETRY_VERSION=1.8.3

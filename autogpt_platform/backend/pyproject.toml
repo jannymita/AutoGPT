@@ -55,6 +55,7 @@ psycopg2-binary = "^2.9.10"
 google-cloud-storage = "^2.18.2"
 launchdarkly-server-sdk = "^9.8.0"
 shopifyapi = "^12.7.0"
+boto3 = "^1.36.4"
 
 [tool.poetry.group.dev.dependencies]
 poethepoet = "^0.31.0"
