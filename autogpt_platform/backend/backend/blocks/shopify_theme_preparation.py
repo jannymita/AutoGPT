@@ -4,6 +4,7 @@ from datetime import datetime
 import zipfile
 import boto3
 import subprocess
+import json
 
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
@@ -23,6 +24,10 @@ class ShopifyThemePreparationBlock(Block):
     class Output(BlockSchema):
         shop_name: str = SchemaField(description="The shop name on Shopify")
         theme_zip_url: str = SchemaField(description="The public url of a zip file containing the theme")
+        collections: dict = SchemaField(
+          description="The collections to create",
+        )
+
 
     def __init__(self):
         super().__init__(
@@ -38,14 +43,17 @@ class ShopifyThemePreparationBlock(Block):
             ],
             test_output=[
                 ("shop_name", "3tn-demo"),
-                ("theme_zip_url", "https://3tn-autogpt.s3.ap-southeast-1.amazonaws.com/shopify/theme/20250123/ks-bootshop-master.zip")
+                ("theme_zip_url", "https://3tn-autogpt.s3.ap-southeast-1.amazonaws.com/shopify/theme/20250123/ks-bootshop-master.zip"),
+                ("collections", {"collection_kRQqkR": {"type": "collection", "settings": {"collection": "sale", "title": ""}}})
             ],
         )
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
       url = self.process_and_upload(input_data.theme_template_index_json)
+      collections = self.get_collections(input_data.theme_template_index_json)
       yield "shop_name", input_data.shop_name
       yield "theme_zip_url", url
+      yield "collections", collections
     
     def process_and_upload(self,config_json: str):
         # Define constants
@@ -99,3 +107,14 @@ class ShopifyThemePreparationBlock(Block):
         # Step 6: Return the S3 URL
         s3_url = f"https://{bucket_name}.s3.{s3_region}.amazonaws.com/{s3_key}"
         return s3_url
+    
+    @staticmethod
+    def get_collections(data) -> dict:
+      try:
+        parsed_data = json.loads(data)  # Parse the JSON string into a dictionary
+      except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON data: {e}")
+      collections_section = parsed_data.get("sections", {}).get("featured_collections_n3Br7m", {})
+      blocks = collections_section.get("blocks", {})
+      
+      return blocks
