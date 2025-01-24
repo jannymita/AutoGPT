@@ -24,8 +24,8 @@ class ShopifyUploadImageBlock(Block):
             id="a3c8fbc9-d7e8-432b-a4a1-fb4db9f8b1a1",
             description="This block uploads an image to a Shopify store.",
             categories={BlockCategory.SHOPIFY},
-            input_schema=ShopifyUploadImage.Input,
-            output_schema=ShopifyUploadImage.Output,
+            input_schema=ShopifyUploadImageBlock.Input,
+            output_schema=ShopifyUploadImageBlock.Output,
             test_input={
                 "shop_name": "shop-1.myshopify.com",
                 "admin_api_key": "your-admin-api-key",
@@ -40,24 +40,50 @@ class ShopifyUploadImageBlock(Block):
         if not all([shop_name, admin_api_key, image_url]):
             raise ValueError("Missing one or more required inputs: shop_name, admin_api_key, or image_url")
 
-        url = f"https://{shop_name}/admin/api/2025-01/files.json"
-        payload = {
-            "file": {
-                "alt": "Uploaded Image",
-                "contentType": "IMAGE",
-                "originalSource": image_url
+        url = f"https://{shop_name}/admin/api/2025-01/graphql.json"
+        query = """
+        mutation fileCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              alt
+              id
+              createdAt
+              fileStatus
+              preview {
+                image {
+                  url
+                }
+              }
             }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        variables = {
+            "files": [
+                {
+                    "alt": "Uploaded Image",
+                    "contentType": "IMAGE",
+                    "originalSource": image_url
+                }
+            ]
         }
         headers = {
             "Content-Type": "application/json",
             "X-Shopify-Access-Token": admin_api_key
         }
 
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
         if response.status_code == 200:
-            file_data = response.json().get("file", {})
+            data = response.json()
+            if data.get("errors") or data["data"]["fileCreate"]["userErrors"]:
+                raise Exception("Error uploading image: " + str(data))
+            file_data = data["data"]["fileCreate"]["files"][0]
             return {
-                "image_name": file_data.get("filename", "unknown.jpg")
+                "image_name": file_data["alt"]
             }
         else:
             raise Exception(f"Failed to upload image: {response.text}")
