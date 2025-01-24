@@ -1,0 +1,68 @@
+/*
+  © 2024 KondaSoft
+  https://www.kondasoft.com
+*/
+
+/*
+  Offcanvas cart
+*/
+.offcanvas-cart .offcanvas-body {
+  transition: all 0.2s ease-out;
+}
+
+.offcanvas-cart .loading .offcanvas-body {
+  opacity: 0.2;
+}
+
+.offcanvas-cart .cart-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.offcanvas-cart .offcanvas-footer {
+  padding: 1rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.offcanvas-cart .cart-subtotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.offcanvas-cart .btn-checkout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.offcanvas-cart .cart-empty {
+}
+
+@media (max-width: 575px) {
+  .offcanvas-cart {
+    width: 100% !important;
+  }
+}
+
+/*
+  Cart Goal
+*/
+
+
+/*
+  Cart Upsell
+*/
+
+
+/*
+  Cart note
+*/
+
+
+/*
+  Shipping calculator
+*/

@@ -1,0 +1,71 @@
+{% liquid
+  assign resources_type = 'query,product'
+  
+  if settings.search_collections
+    assign resources_type = resources_type | append: ',collection'
+  endif
+  if settings.search_articles
+    assign resources_type = resources_type | append: ',article'
+  endif
+  if settings.search_pages
+    assign resources_type = resources_type | append: ',page'
+  endif
+%}
+
+<div
+  id="offcanvas-search"
+  class="offcanvas-search offcanvas offcanvas-end" 
+  tabindex="-1" 
+  aria-labelledby="offcanvas-search-label">
+  <predictive-search 
+    class="predictive-search"
+    data-img-orientation="{{ settings.product_img_orientation }}"
+    data-img-border="{{ settings.product_img_border }}"
+    data-show-quick-view="{{ settings.search_show_quick_view }}"
+    data-quick-view-btn-color="{{ settings.search_quick_view_btn_color }}"
+    data-resources-type="{{ resources_type }}">
+    <div class="offcanvas-header">
+      <h2 id="offcanvas-search-label" class="offcanvas-title">
+        {{ 'general.search.title' | t }}
+      </h2>
+      <button class="btn-close" type="button" data-bs-dismiss="offcanvas" aria-label="{{ 'general.accessibility.close' | t }}">
+        {% render 'svg-icons', icon: 'x' %}
+      </button>
+    </div> 
+    <div class="offcanvas-body">
+      <form action="{{ routes.search_url }}" class="search-form mb-6" method="get" role="search">
+        <input name="options[prefix]" type="hidden" value="last">
+        <div class="form-control-wrapper">
+          <input
+            class="form-control"
+            type="search"
+            name="q"
+            value="{{ search.terms | escape }}"
+            role="combobox"
+            aria-expanded="false"
+            aria-owns="predictive-search-results"
+            aria-controls="predictive-search-results"
+            aria-haspopup="listbox"
+            aria-autocomplete="list"
+            aria-label="{{ 'general.search.input_label' | t }}"
+            placeholder="{{ 'general.search.input_label' | t }}"
+            autocorrect="off" 
+            autocomplete="off" 
+            autocapitalize="off"
+            spellcheck="false">
+          <button type="submit" class="btn btn-link" aria-label="{{ 'general.search.btn_label' | t }}">
+            {% render 'svg-icons', icon: 'search', size: 20, class: '' %}
+          </button>
+        </div>
+        <div id="predictive-search" tabindex="-1"></div>
+        <span id="predictive-search-status" class="visually-hidden" role="status"></span>
+      </form>
+      <div class="search-empty pt-4 pb-11 text-center" {% if settings.rtl_langs contains request.locale.iso_code %}hidden{% endif %}>
+        {{ 'general.search.empty_html' | t }} 
+        <button class="btn btn-outline-primary" type="button" data-bs-dismiss="offcanvas">
+          {{ 'general.search.continue_shopping' | t }}
+        </button>
+      </div>
+    </div>
+  </predictive-search>
+</div>

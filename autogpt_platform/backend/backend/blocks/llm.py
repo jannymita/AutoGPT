@@ -886,7 +886,7 @@ class AIListGeneratorBlock(Block):
             description="Maximum number of retries for generating a valid list.",
             ge=1,
             le=5,
-        )
+        )   
         max_tokens: int | None = SchemaField(
             advanced=True,
             default=None,

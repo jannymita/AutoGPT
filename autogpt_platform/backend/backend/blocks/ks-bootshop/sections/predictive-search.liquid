@@ -1,0 +1,70 @@
+{%- if predictive_search.performed -%}
+  {% liquid 
+      assign results = predictive_search.resources.products.size
+
+      if settings.search_collections
+        assign results = results | plus: predictive_search.resources.collections.size
+      endif
+      if settings.search_articles
+        assign results = results | plus: predictive_search.resources.articles.size
+      endif
+      if settings.search_pages
+        assign results = results | plus: predictive_search.resources.pages.size
+    endif
+  %}
+  <div 
+    id="predictive-search-results"
+    class="predictive-search-results pt-7"
+    data-results-text="{{ 'general.search.results' | t: count: results }}">
+    {%- if predictive_search.resources.products.size > 0 -%}
+      <h3 
+        id="predictive-search-products-title"
+        class="title title-border-bottom h6 text-center mb-4">
+        <span>{{- 'general.search.products' | t }} ({{- predictive_search.resources.products.size -}})</span>
+      </h3>
+      <ul 
+        id="predictive-search-results-products-list" 
+        class="predictive-search-results-products-list list-group list-group-flush list-unstyled mb-6" 
+        role="group"
+        aria-labelledby="predictive-search-products-title">
+        {%- for product in predictive_search.resources.products -%}
+          <li 
+            id="predictive-search-option-product-{{ forloop.index }}" 
+            class="list-group-item"
+            role="option" 
+            aria-selected="false">
+            <a 
+              href="{{ product.url }}"
+              class="list-group-item-action"
+              tabindex="-1">
+              <div class="row mx-n3 align-items-center">
+                <div class="col-6 px-3">
+                  {% render 'image-url', img: product.featured_image, orientation: settings.product_card_img_orientation, class: settings.product_card_img_border %}
+                </div>
+                <div class="col-12 px-3">
+                  <h3 class="cart-item-product-title h6 mb-1">
+                    {{ product.title }}
+                  </h3>
+                  {% render 'product-rating-badge', product: product %}
+                  {% render 'product-card-price', product: product %}
+                </div>
+              </div>
+            </a>
+          </li>
+        {%- endfor -%}
+      </ul>
+    {%- endif -%}
+    <div 
+      id="predictive-search-option-search-keywords" 
+      class="predictive-search-option-search-keywords">
+      <button
+        class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-between"
+        tabindex="-1"
+        role="option"
+        aria-selected="false">
+        {{- 'general.search.search_for' | t: terms: predictive_search.terms -}}
+        {% render 'svg-icons', icon: 'arrow-right', size: 22 %}
+      </button>
+    </div>
+  </div>
+{%- endif -%}
