@@ -65,7 +65,7 @@ class ShopifyUploadImageBlock(Block):
         variables = {
             "files": [
                 {
-                    "alt": "new_banner",
+                    "alt": "out-0.webp",
                     "contentType": "IMAGE",
                     "originalSource": image_url
                 }
