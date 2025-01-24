@@ -2,7 +2,7 @@ import requests
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
-class ShopifyUploadImage(Block):
+class ShopifyUploadImageBlock(Block):
     class Input(BlockSchema):
         shop_name: str = SchemaField(
             description="The Shopify store name",
