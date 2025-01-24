@@ -69,9 +69,8 @@ class ShopifyThemePreparationBlock(Block):
 
         # Step 1: Clone the repository
         try:
-          if os.path.exists(repo_dir):
-            shutil.rmtree(repo_dir)  # Clean up any existing directory
-          subprocess.run(["git", "clone", repo_url, repo_dir], check=True)
+          if not os.path.exists(repo_dir):
+            subprocess.run(["git", "clone", repo_url, repo_dir], check=True)
         except subprocess.CalledProcessError as e:
             raise Exception(f"Failed to clone repository: {e}")
 
