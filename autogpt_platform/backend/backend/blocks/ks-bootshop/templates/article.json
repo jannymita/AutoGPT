@@ -1,0 +1,21 @@
+{
+  "sections": {
+    "template-article": {
+      "type": "article-main",
+      "settings": {
+        "img_show": true,
+        "img_orientation": "ratio-16x9",
+        "img_border": "img-thumbnail",
+        "max_width": "720",
+        "title_font_size": "h1",
+        "article_meta": true,
+        "show_tags": true,
+        "pt": 8,
+        "pb": 10
+      }
+    }
+  },
+  "order": [
+    "template-article"
+  ]
+}

@@ -1,0 +1,48 @@
+{% if paginate.pages > 1 %}
+  <nav aria-label="{{ 'general.accessibility.pagination' | t }}">
+    <ul class="pagination justify-content-center my-6">
+      {% if paginate.previous %}
+        <li class="page-item">
+          <a 
+            class="page-link" 
+            href="{{ paginate.previous.url }}" 
+            aria-label="{{ paginate.next.title }}"
+            data-new-page="{{ paginate.current_page | minus: 1 }}">
+            <span aria-hidden="true">&laquo;</span>
+          </a>
+        </li>
+      {% endif %}
+      {% for part in paginate.parts -%}
+        {% if part.is_link %}
+          <li class="page-item">
+            <a 
+              class="page-link" 
+              href="{{ part.url }}"
+              data-new-page="{{ part.title }}">
+              {{ part.title }}
+            </a>
+          </li>
+        {% else %}
+          <li 
+            class="page-item {% if paginate.current_page == part.title %}active{% endif %}"
+            aria-current="{% if paginate.current_page == part.title %}page{% endif %}">
+            <span class="page-link">
+              {{ part.title }}
+            </span>
+          </li>
+        {% endif %}
+      {% endfor %}
+      {% if paginate.next %}
+        <li class="page-item">
+          <a 
+            class="page-link" 
+            href="{{ paginate.next.url }}" 
+            aria-label="{{ paginate.next.title }}"
+            data-new-page="{{ paginate.current_page | plus: 1 }}">
+            <span aria-hidden="true">&raquo;</span>
+          </a>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+{% endif %}

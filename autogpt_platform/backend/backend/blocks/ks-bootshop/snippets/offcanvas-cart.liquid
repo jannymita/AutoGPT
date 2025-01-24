@@ -1,0 +1,31 @@
+<div
+  id="offcanvas-cart"
+  class="offcanvas-cart offcanvas offcanvas-end" 
+  tabindex="-1" 
+  aria-labelledby="offcanvas-cart-label"
+  {% if settings.cart_upsells_enable %}data-cart-upsells{% endif %}
+>
+  <cart-container class="cart-container">
+    <div class="offcanvas-header">
+      <h2 id="offcanvas-cart-label" class="offcanvas-title">
+        {{ 'cart.title' | t }}
+      </h2>
+      <button class="btn-close" type="button" data-bs-dismiss="offcanvas" aria-label="{{ 'general.accessibility.close' | t }}">
+        {% render 'svg-icons', icon: 'x' %}
+      </button>
+    </div>
+    <div class="offcanvas-body">
+      <div id="cart-alert" class="cart-alert alert alert-danger small px-4 py-3" role="alert" hidden>
+        <div class="alert-icon me-4 flex-shrink-0">
+          {% render 'svg-icons', icon: 'alert-circle', size: 18 %}
+        </div>
+        <p class="mb-0" data-alert-msg></p>
+      </div>
+      {% liquid 
+        render 'cart-items' 
+        render 'cart-note'
+      %}
+    </div>
+    {% render 'cart-footer' %}
+  </cart-container>
+</div>

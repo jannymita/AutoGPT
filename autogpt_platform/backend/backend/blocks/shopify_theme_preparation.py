@@ -5,6 +5,7 @@ import zipfile
 import boto3
 import subprocess
 import json
+import stat
 
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
@@ -49,63 +50,84 @@ class ShopifyThemePreparationBlock(Block):
         )
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
-      url = self.process_and_upload(input_data.theme_template_index_json)
+      url = self.process_and_upload(input_data.theme_template_index_json,input_data.shop_name)
       collections = self.get_collections(input_data.theme_template_index_json)
       yield "shop_name", input_data.shop_name
       yield "theme_zip_url", url
       yield "collections", collections
-    
-    def process_and_upload(self,config_json: str):
-        # Define constants
-        repo_url = "https://github.com/kondasoft/ks-bootshop.git"
-        bucket_name = "3tn-autogpt"
-        s3_region = "ap-southeast-1"
-        s3_folder = "shopify/theme"
 
-        # Create a timestamp
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        zip_filename = f"ks-bootshop-{timestamp}.zip"
-        repo_dir = "ks-bootshop"
+    def process_and_upload(self, config_json: str, shopname: str):
+      # Define constants
+      repo_url = "https://github.com/kondasoft/ks-bootshop.git"
+      bucket_name = "3tn-autogpt"
+      s3_region = "ap-southeast-1"
+      s3_folder = "shopify/theme"
 
-        # Step 1: Clone the repository
-        try:
-          if not os.path.exists(repo_dir):
-            subprocess.run(["git", "clone", repo_url, repo_dir], check=True)
-        except subprocess.CalledProcessError as e:
-            raise Exception(f"Failed to clone repository: {e}")
+      # Create a timestamp for uniqueness
+      timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+      temp_dir = "/var/tmp/templates"
+      zip_filename = f"ks-bootshop-{shopname}-{timestamp}.zip"  # Corrected zip filename without path
+      zip_file_path = os.path.join(temp_dir, zip_filename)  # Full path for zipping
+      backup_dir = os.path.join(temp_dir, f"ks-bootshop_backup_{timestamp}")
 
-        # Step 2: Replace data in templates/index.json
-        template_path = os.path.join(repo_dir, "templates", "index.json")
-        if os.path.exists(template_path):
+      repo_dir = "/app/autogpt_platform/backend/backend/blocks/ks-bootshop"
+      
+      # Ensure temporary directory exists
+      if not os.path.exists(temp_dir):
+          os.makedirs(temp_dir)
+
+      # Backup the folder before making changes
+      if os.path.exists(repo_dir):
+          try:
+              shutil.copytree(repo_dir, backup_dir)
+              print(f"Backup created at: {backup_dir}")
+          except Exception as e:
+              raise Exception(f"Failed to create backup: {e}")
+      else:
+          raise FileNotFoundError(f"Repository directory not found: {repo_dir}")
+
+      # Step 2: Replace data in templates/index.json
+      template_path = os.path.join(backup_dir, "templates", "index.json")
+      if os.path.exists(template_path):
           with open(template_path, "w") as file:
-            file.write(config_json)
-        else:
+              file.write(config_json)
+          print(f"Updated JSON file at: {template_path}")
+      else:
           raise FileNotFoundError(f"Template file not found at {template_path}")
 
-        # Step 3: Zip the modified repository
-        with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
-          for root, _, files in os.walk(repo_dir):
-            for file in files:
-              file_path = os.path.join(root, file)
-              arcname = os.path.relpath(file_path, start=repo_dir)
-              zipf.write(file_path, arcname)
+      # Step 3: Zip the modified repository
+      try:
+          with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+              for root, _, files in os.walk(backup_dir):
+                  for file in files:
+                      file_path = os.path.join(root, file)
+                      arcname = os.path.relpath(file_path, start=backup_dir)
+                      zipf.write(file_path, arcname)
+          print(f"Zipped folder to {zip_file_path}")
+      except Exception as e:
+          raise Exception(f"Failed to zip repository: {e}")
 
-        # Step 4: Upload to S3
-        s3 = boto3.client("s3", region_name=s3_region)
-        s3_key = f"{s3_folder}/{datetime.now().strftime('%Y%m%d')}/{zip_filename}"
+      # Step 4: Upload the ZIP file to S3
+      s3 = boto3.client("s3", region_name=s3_region)
+      s3_key = f"{s3_folder}/{datetime.now().strftime('%Y%m%d')}/{zip_filename}"  # Use only the filename, not the full path
 
-        try:
-          s3.upload_file(zip_filename, bucket_name, s3_key)
-        except Exception as e:
+      try:
+          s3.upload_file(zip_file_path, bucket_name, s3_key)
+          print(f"Uploaded to S3: {s3_key}")
+      except Exception as e:
           raise Exception(f"Failed to upload to S3: {e}")
 
-        # Step 5: Delete the local zip file
-        os.remove(zip_filename)
-        shutil.rmtree(repo_dir)  # Clean up the cloned repository
+      # Step 5: Clean up local files and folders
+      try:
+          os.remove(zip_file_path)  # Remove the zip file
+          shutil.rmtree(backup_dir)  # Remove the backup directory
+          print(f"Deleted local zip file and backup directory")
+      except Exception as e:
+          raise Exception(f"Failed during cleanup: {e}")
 
-        # Step 6: Return the S3 URL
-        s3_url = f"https://{bucket_name}.s3.{s3_region}.amazonaws.com/{s3_key}"
-        return s3_url
+      # Step 6: Return the S3 URL
+      s3_url = f"https://{bucket_name}.s3.{s3_region}.amazonaws.com/{s3_key}"
+      return s3_url
     
     @staticmethod
     def get_collections(data) -> dict:
