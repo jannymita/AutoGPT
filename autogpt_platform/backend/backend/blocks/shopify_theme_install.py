@@ -24,8 +24,8 @@ class ShopifyUploadImageBlock(Block):
             id="a3c8fbc9-d7e8-432b-a4a1-fb4db9f8b1a1",
             description="This block uploads an image to a Shopify store.",
             categories={BlockCategory.SHOPIFY},
-            input_schema=ShopifyUploadImage.Input,
-            output_schema=ShopifyUploadImage.Output,
+            input_schema=ShopifyUploadImageBlock.Input,
+            output_schema=ShopifyUploadImageBlock.Output,
             test_input={
                 "shop_name": "shop-1.myshopify.com",
                 "admin_api_key": "your-admin-api-key",
