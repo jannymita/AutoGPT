@@ -151,6 +151,7 @@ class ShopifyProductCreateBlock(Block):
                 "productType": item.get("product_type", ""),
                 "tags": item.get("tags", []),
                 "productOptions": item.get("options", []),
+                "published": True
             }
         }
         response = shopify.GraphQL().execute(query, params)
