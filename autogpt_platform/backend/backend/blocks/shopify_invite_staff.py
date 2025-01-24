@@ -287,4 +287,4 @@ class ShopifyInviteStaffBlock(Block):
         if data and data["staffMemberInvite"] and data["staffMemberInvite"]["staffMember"] and data["staffMemberInvite"]["staffMember"]["id"]:
             return data["staffMemberInvite"]["staffMember"]["id"]
         else:
-            raise Exception(f"Failed to invite staff to store {shop_name}: {raw}")
+            raise Exception(f"Failed to invite staff to store {shop_name}: {raw} | {cookie} | {csrf_token}")
