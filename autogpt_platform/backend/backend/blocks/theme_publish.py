@@ -1,10 +1,11 @@
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 import requests
-import json
 import time
+import shopify
 
 class ThemePublishBlock(Block):
+    api_version = "2025-01"
     class Input(BlockSchema):
         theme_id: str = SchemaField(
             description="The ID of the theme to publish",
@@ -42,68 +43,93 @@ class ThemePublishBlock(Block):
             }
         )
     
-    @staticmethod
-    def publish_theme(theme_id, shop_name, admin_api_key):
-        url_publish = f"https://{shop_name}.myshopify.com/admin/api/2025-01/themes/{theme_id}.json"
-        headers = {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": admin_api_key,
+    def publish_theme(self, theme_id, shop_name, admin_api_key):
+        """Publish a theme as the main theme using the Shopify GraphQL API."""
+        
+        shop_url = f"https://{shop_name}.myshopify.com"
+        session = shopify.Session(shop_url, '2025-01', admin_api_key)
+        shopify.ShopifyResource.activate_session(session)
+
+        query = """
+        mutation publishTheme($themeId: ID!) {
+            themeUpdate(input: {
+                id: $themeId,
+                role: MAIN
+            }) {
+                theme {
+                    id
+                    role
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        """
+
+        params = {
+            "themeId": f"gid://shopify/Theme/{theme_id}"
         }
 
         try:
-            payload = {"theme": {"role": "main"}}
-            response_publish = requests.put(url_publish, json=payload, headers=headers)
-            response_publish.raise_for_status()
+            # Execute the GraphQL mutation to publish the theme
+            response = shopify.GraphQL().execute(query, params)
 
-            # Return the success response
-            return {"theme_id": theme_id}
+            # Check if there are errors in the response
+            if 'data' in response and 'themeUpdate' in response['data']:
+                theme = response['data']['themeUpdate']['theme']
+                if theme and theme['role'] == 'MAIN':
+                    print(f"Theme with ID {theme_id} has been set as the main theme.")
+                    return {"theme_id": theme_id}
+                else:
+                    errors = response['data']['themeUpdate']['userErrors']
+                    raise Exception(f"Error publishing theme '{theme_id}': {errors}")
+            else:
+                raise Exception(f"Unknown error while publishing theme '{theme_id}'")
 
-        except requests.exceptions.RequestException as req_err:
-            raise Exception(f"Request error occurred: {req_err}")
         except Exception as e:
-            raise Exception(f"An error occurred: {e}")
+            raise Exception(f"Error occurred while publishing theme '{theme_id}': {str(e)}")
 
-    @staticmethod
-    def wait_for_theme_installation(theme_id, shop_name, admin_api_key, timeout=300, interval=10):
+    def wait_for_theme_installation(self, theme_id, timeout=300, interval=10):
+        """Wait for the theme installation to complete using the Shopify GraphQL API."""
+        
+        query = """
+        query checkThemeInstallation($themeId: ID!) {
+            theme(id: $themeId) {
+                id
+                processing
+            }
+        }
         """
-        Wait for the theme installation to complete.
 
-        :param theme_id: ID of the theme to check.
-        :param shop_name: Shopify store name.
-        :param admin_api_key: Admin API key for authentication.
-        :param timeout: Maximum time to wait for installation (in seconds).
-        :param interval: Time interval between checks (in seconds).
-        :return: None
-        :raises Exception: If installation doesn't complete within the timeout.
-        """
-        url_themes = f"https://{shop_name}.myshopify.com/admin/api/2025-01/themes.json"
-        headers = {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": admin_api_key,
+        params = {
+            "themeId": f"gid://shopify/Theme/{theme_id}"
         }
 
         start_time = time.time()
 
         while time.time() - start_time < timeout:
             try:
-                response = requests.get(url_themes, headers=headers)
-                response.raise_for_status()
-                themes = response.json().get("themes", [])
+                # Execute the GraphQL query to check the theme status
+                response = shopify.GraphQL().execute(query, params)
 
-                # Check the status of the specified theme
-                theme = next((t for t in themes if t["id"] == int(theme_id)), None)
-                if not theme:
-                    raise Exception(f"Theme with ID {theme_id} not found.")
-                if not theme["processing"]:
-                    print("Theme installation completed.")
-                    return  # Installation is complete
+                # Check if theme processing status is available
+                if 'data' in response and 'theme' in response['data']:
+                    theme = response['data']['theme']
+                    if not theme['processing']:
+                        print("Theme installation completed.")
+                        return  # Installation is complete
 
-                print("Theme installation still in progress. Waiting...")
-                time.sleep(interval)  # Wait before the next check
-            except requests.exceptions.RequestException as req_err:
-                raise Exception(f"Request error occurred: {req_err}")
+                    print("Theme installation still in progress. Waiting...")
+                    time.sleep(interval)  # Wait before the next check
+                else:
+                    raise Exception(f"Error retrieving theme status for theme '{theme_id}'.")
 
-        raise Exception("Theme installation did not complete within the timeout period.") 
+            except Exception as e:
+                raise Exception(f"Error occurred while checking theme installation status: {str(e)}")
+
+        raise Exception("Theme installation did not complete within the timeout period.")
         
             
     
@@ -114,10 +140,15 @@ class ThemePublishBlock(Block):
             shop_name = input_data.shop_name
             admin_api_key = input_data.admin_api_key
 
+            # Set up the Shopify session
+            shop_url = f"https://{shop_name}.myshopify.com"
+            session = shopify.Session(shop_url, self.api_version, admin_api_key)
+            shopify.ShopifyResource.activate_session(session)
+
             print(f"Publishing theme with ID: {theme_id} for shop: {shop_name}")
             self.wait_for_theme_installation(theme_id, shop_name, admin_api_key)
 
-            # Call the install_theme method with the extracted input data
+            # Call the publish_theme method with the extracted input data
             self.publish_theme(theme_id, shop_name, admin_api_key)
 
             yield "theme_id", theme_id,

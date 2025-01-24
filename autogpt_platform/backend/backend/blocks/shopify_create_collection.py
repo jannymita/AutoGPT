@@ -1,8 +1,10 @@
 import requests
+import shopify
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
 class CreateCollectionBlock(Block):
+    api_version = "2025-01"
     class Input(BlockSchema):
         shop_name: str = SchemaField(description="The Shopify store name")
         admin_api_key: str = SchemaField(description="The API key of the Shopify store")
@@ -27,18 +29,14 @@ class CreateCollectionBlock(Block):
                         "type": "collection",
                         "settings": {
                             "collection": "men",
-                            "title": "Men's Clothing",
-                            "tag_condition": "sale",  # Tag condition
-                            "description": "anb"   # Collection description
+                            "title": "Men's Clothing"
                         }
                     },
                     "collection_KdHXk9": {
                         "type": "collection",
                         "settings": {
                             "collection": "women",
-                            "title": "Women's Clothing",
-                            "tag_condition": "new-arrivals",  # Tag condition
-                            "description": "anb"   # Collection description
+                            "title": "Women's Clothing"
                         }
                     }
                 },
@@ -66,10 +64,13 @@ class CreateCollectionBlock(Block):
             
 
     @staticmethod
-    def create_smart_collection(shop_name, admin_api_key, collection_data):
-        """Create smart collections based on tag conditions using Shopify API."""
-        url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/smart_collections.json"
-        headers = {"Content-Type": "application/json", "X-Shopify-Access-Token": admin_api_key}
+    def create_smart_collection(input_data, collection_data):
+        """Create smart collections based on tag conditions using Shopify GraphQL API."""
+        
+        # Set up the Shopify session
+        shop_url = f"https://{input_data.shop_name}.myshopify.com"
+        session = shopify.Session(shop_url, input_data.api_version, input_data.admin_api_key)
+        shopify.ShopifyResource.activate_session(session)
 
         collection_ids = {}
         collection_handles = {}
@@ -79,37 +80,57 @@ class CreateCollectionBlock(Block):
             collection_title = settings.get("title")
             tag_condition = settings.get("title")
 
-            # Construct the payload for creating the Smart Collection
-            payload = {
-                "smart_collection": {
-                    "title": collection_title,
-                    "body_html": " ", # Description of the collection
-                    "published": True,
-                    "rules": [
+            # Construct the GraphQL query for creating the Smart Collection
+            query = """
+            mutation createSmartCollection($title: String!, $tagCondition: String!) {
+                smartCollectionCreate(input: {
+                    title: $title,
+                    bodyHtml: " ",
+                    published: true,
+                    rules: [
                         {
-                            "column": "tag",  # Column to filter by (tags)
-                            "relation": "equals",  # Relation to apply (equals)
-                            "condition": tag_condition  # Tag condition for the smart collection
+                            column: TAG,
+                            relation: EQUALS,
+                            condition: $tagCondition
                         }
                     ],
-                    "disjunctive": False  # Set to False if all conditions must be met (AND logic)
+                    disjunctive: false
+                }) {
+                    smartCollection {
+                        id
+                        handle
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
                 }
+            }
+            """
+
+            params = {
+                "title": collection_title,
+                "tagCondition": tag_condition
             }
 
             try:
-                # Send a POST request to Shopify's API to create the smart collection
-                response = requests.post(url, json=payload, headers=headers)
+                # Execute the GraphQL query
+                response = shopify.GraphQL().execute(query, params)
 
-                # Check if the request was successful
-                if response.status_code == 201:
-                    created_collection = response.json()["smart_collection"]
-                    collection_ids[collection_key] = created_collection["id"]
-                    collection_handles[collection_key] = created_collection["handle"]
+                # Check for errors in the response
+                if 'data' in response and 'smartCollectionCreate' in response['data']:
+                    created_collection = response['data']['smartCollectionCreate']['smartCollection']
+                    collection_ids[collection_key] = created_collection['id']
+                    collection_handles[collection_key] = created_collection['handle']
                 else:
-                    raise ValueError(f"Error creating collection '{collection_key}': {response.json()}")
+                    errors = response.get('errors', [])
+                    if errors:
+                        raise ValueError(f"Error creating collection '{collection_key}': {errors}")
+                    else:
+                        raise ValueError(f"Unknown error creating collection '{collection_key}'")
 
-            except requests.exceptions.RequestException as e:
-                raise ValueError(f"Request error while creating collection '{collection_key}': {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Error executing GraphQL request for collection '{collection_key}': {str(e)}")
 
         return collection_ids, collection_handles
 
@@ -121,8 +142,7 @@ class CreateCollectionBlock(Block):
 
             # Create the smart collections using tags and get the results
             collection_ids, collection_handles = self.create_smart_collection(
-                input_data.shop_name,
-                input_data.admin_api_key,
+                input_data,
                 input_data.collection_data,
             )
 

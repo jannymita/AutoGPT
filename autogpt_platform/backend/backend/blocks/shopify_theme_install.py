@@ -1,4 +1,5 @@
 import requests
+import shopify
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
@@ -44,33 +45,56 @@ class ShopifyThemeInstallBlock(Block):
             }
         )
 
-    def install_theme(self, theme_link: str, shop_name: str, admin_api_key: str) -> dict:
-        if not all([theme_link, shop_name, admin_api_key]):
-            raise ValueError("Missing one or more required inputs: theme_link, shop_name, or admin_api_key")
+    @staticmethod
+    def install_theme(theme_link: str, shop_name: str, admin_api_key: str) -> dict:
+        """Install a theme using the Shopify GraphQL API."""
 
-        url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/themes.json"
-        payload = {
-            "theme": {
-                "name": "New Theme",
-                "src": theme_link,
-                "role": "unpublished"
+        # GraphQL mutation to install the theme
+        query = """
+        mutation installTheme($themeSrc: String!) {
+            themeCreate(input: {
+                name: "New Theme",
+                src: $themeSrc,
+                role: UNPUBLISHED
+            }) {
+                theme {
+                    id
+                    name
+                    role
+                }
+                userErrors {
+                    field
+                    message
+                }
             }
         }
-        headers = {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": admin_api_key
+        """
+
+        params = {
+            "themeSrc": theme_link
         }
 
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 201:
-            theme_data = response.json().get("theme", {})
-            return {
-                "shop_name": shop_name,
-                "theme_id": theme_data.get("id"),
-                "theme_name": theme_data.get("name"),
-            }
-        else:
-            raise Exception(f"Failed to install theme: {response.text}")
+        try:
+            # Execute the GraphQL mutation
+            response = shopify.GraphQL().execute(query, params)
+
+            # Check for errors in the response
+            if 'data' in response and 'themeCreate' in response['data']:
+                theme_data = response['data']['themeCreate']['theme']
+                if theme_data:
+                    return {
+                        "shop_name": shop_name,
+                        "theme_id": theme_data.get("id"),
+                        "theme_name": theme_data.get("name"),
+                    }
+                else:
+                    # Handle user errors if any
+                    errors = response['data']['themeCreate']['userErrors']
+                    raise Exception(f"Error installing theme: {errors}")
+            else:
+                raise Exception("Failed to install theme: Unknown error")
+        except Exception as e:
+            raise Exception(f"Error occurred while installing theme: {str(e)}")
     
     
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
@@ -79,6 +103,12 @@ class ShopifyThemeInstallBlock(Block):
             theme_link = input_data.theme_link
             shop_name = input_data.shop_name
             admin_api_key = input_data.admin_api_key
+
+            # Set up the Shopify session
+            shop_url = f"https://{shop_name}.myshopify.com"
+            session = shopify.Session(shop_url, self.api_version, admin_api_key)
+            shopify.ShopifyResource.activate_session(session)
+
 
             # Call the install_theme method with the extracted input data
             result = self.install_theme(theme_link, shop_name, admin_api_key)
