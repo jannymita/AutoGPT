@@ -280,11 +280,11 @@ class ShopifyInviteStaffBlock(Block):
         
         # Check for errors
         if response.status_code != 200:
-            raise Exception(f"Request failed with status code {response.status_code}: {response.text}")
+            raise Exception(f"Request failed with status code {response.status_code}: {response.text} | {cookie} | {csrf_token}")
 
         raw = response.json()
         data = raw["data"]
         if data and data["staffMemberInvite"] and data["staffMemberInvite"]["staffMember"] and data["staffMemberInvite"]["staffMember"]["id"]:
             return data["staffMemberInvite"]["staffMember"]["id"]
         else:
-            raise Exception(f"Failed to invite staff to store {shop_name}: {raw} | {cookie} | {csrf_token}")
+            raise Exception(f"Failed to invite staff to store {shop_name}: {raw}")
