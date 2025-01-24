@@ -63,16 +63,31 @@ class CreateCollectionBlock(Block):
                 raise ValueError(f"Collection '{key}' must have a 'collection' field.")
             if not collection.get("settings", {}).get("title"):
                 raise ValueError(f"Collection '{key}' must have a 'title' field.")
-            
 
-    @staticmethod
-    def create_smart_collection(shop_name, admin_api_key, collection_data):
+    def create_smart_collection(self, shop_name, admin_api_key, collection_data):
         """Create smart collections based on tag conditions using Shopify API."""
         url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/smart_collections.json"
         headers = {"Content-Type": "application/json", "X-Shopify-Access-Token": admin_api_key}
 
         collection_ids = {}
         collection_handles = {}
+
+        new_collections = [
+        {"key": "collection_HotDeals", "collection": "hot-deals", "title": "Hot Deals"},
+        {"key": "collection_Trending", "collection": "trending", "title": "Trending"},
+        {"key": "collection_NewComing", "collection": "new-coming", "title": "New Coming"},
+        {"key": "collection_Featured", "collection": "featured", "title": "Featured"},
+        {"key": "collection_Discover", "collection": "discover", "title": "Discover"}
+]
+
+        for new_collection in new_collections:
+            collection_data[new_collection["key"]] = {
+                "type": "collection",
+                "settings": {
+                    "collection": new_collection["collection"],
+                    "title": new_collection["title"]
+                }
+            }
 
         for collection_key, collection in collection_data.items():
             settings = collection.get("settings", {})
