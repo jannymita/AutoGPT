@@ -94,7 +94,7 @@ class ShopifyProductsNormalizationBlock(Block):
         # Check if 'Image Url' column exists
         if 'Image Url' not in headers:
             print("The 'Image Url' column is missing from the spreadsheet.")
-            return
+            return image_urls
 
         # Find the index of the 'Image Url' and 'id' columns
         image_url_index = headers.index('Image Url')
@@ -112,6 +112,9 @@ class ShopifyProductsNormalizationBlock(Block):
                         row[image_url_index] = image_url
                 except Exception as e:
                     print(f"Error generating image URL for {row} : {e}")
+                    
+        if not image_urls:
+            return image_urls
 
         # Update the Google Sheet with the new data
         body = {
