@@ -118,7 +118,6 @@ class ShopifyProductCreateBlock(Block):
             variant_title = []
 
             for key, value in item.items():
-
                 if key.startswith("Variant"):
                     variant_title.append(value)
                     option = key.split(":")[-1].strip()
@@ -144,7 +143,6 @@ class ShopifyProductCreateBlock(Block):
         return list(products.values())
     
     def create_product(self, item: dict[str, Any]) -> dict[str, str]:
-
         query = "mutation productCreate($input: ProductInput!) {  productCreate(    input: $input  ) {    product {      id      title      options {        id        name        values      }    }    userErrors {      field      message    }  }}"
         params = {
             "input": {
@@ -206,6 +204,14 @@ class ShopifyProductCreateBlock(Block):
         }
 
         for item_variant in item["variants"]:
+            image_url = item_variant.get("image_url", "")
+            if image_url:
+                params["media"].append({
+                    "originalSource": image_url,
+                    "alt": item_variant.get("title", ""),
+                    "mediaContentType": "IMAGE",
+                })
+                
             if item_variant["title"] not in existing_variant_title:
                 variant = {
                     "price": item_variant["price"],
@@ -220,14 +226,6 @@ class ShopifyProductCreateBlock(Block):
 
                 params["variants"].append(variant)
 
-                image_url = item_variant.get("image_url", "")
-                if image_url:
-                    params["media"].append({
-                        "originalSource": image_url,
-                        "alt": item_variant.get("title", ""),
-                        "mediaContentType": "IMAGE",
-                    })
-                    
         # no new variants
         if not params["variants"]:
             return list()

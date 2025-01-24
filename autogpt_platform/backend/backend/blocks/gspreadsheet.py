@@ -21,7 +21,7 @@ class GSpreadsheetBlock(Block):
         )
         range: str = SchemaField(
             description="The A1 notation of the range to write",
-            default="sheet1!A1:F100"
+            default="sheet1!A1:Z100"
         )
 
     class Output(BlockSchema):
