@@ -40,7 +40,7 @@ class ShopifyUploadImageBlock(Block):
         if not all([shop_name, admin_api_key, image_url]):
             raise ValueError("Missing one or more required inputs: shop_name, admin_api_key, or image_url")
 
-        url = f"https://{shop_name}/admin/api/2025-01/graphql.json"
+        url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/graphql.json"
         query = """
         mutation fileCreate($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
