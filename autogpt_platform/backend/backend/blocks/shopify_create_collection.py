@@ -100,6 +100,7 @@ class CreateCollectionBlock(Block):
                     "title": collection_title,
                     "body_html": " ", # Description of the collection
                     "published": True,
+                    "published_scope": "global",
                     "rules": [
                         {
                             "column": "tag",  # Column to filter by (tags)
@@ -107,7 +108,7 @@ class CreateCollectionBlock(Block):
                             "condition": tag_condition  # Tag condition for the smart collection
                         }
                     ],
-                    "disjunctive": False  # Set to False if all conditions must be met (AND logic)
+                    "disjunctive": True  # Set to False if all conditions must be met (AND logic)
                 }
             }
 
