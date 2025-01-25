@@ -111,10 +111,14 @@ class ShopifyProductCreateBlock(Block):
                 "tags": item.get("Tags", "").split(",") if item.get("Tags", "") else [],
                 "variants": [],
                 "options": {},
-                "quantity_maps": {}
+                "quantity_maps": {},
+                "image_urls": []
             } if title not in products else products[title]
 
-            variant = {"price": item.get("Price", 0), "title": "", "image_url": item.get("Image Url", ""),"values": []}
+            if item.get("Image Url", ""):
+                product["image_urls"].append(item.get("Image Url", "")) 
+
+            variant = {"price": item.get("Price", 0), "title": "", "values": []}
             variant_title = []
 
             for key, value in item.items():
@@ -143,7 +147,7 @@ class ShopifyProductCreateBlock(Block):
         return list(products.values())
     
     def create_product(self, item: dict[str, Any]) -> dict[str, str]:
-        query = "mutation productCreate($input: ProductInput!) {  productCreate(    input: $input  ) {    product {      id      title      options {        id        name        values      }    }    userErrors {      field      message    }  }}"
+        query = "mutation productCreate($input: ProductInput!, $media: [CreateMediaInput!]) {  productCreate(    input: $input, media: $media  ) {    product {      id      title      options {        id        name        values      }    }    userErrors {      field      message    }  }}"
         params = {
             "input": {
                 "title": item.get("title", ""),
@@ -152,8 +156,16 @@ class ShopifyProductCreateBlock(Block):
                 "tags": item.get("tags", []),
                 "productOptions": item.get("options", []),
                 "published": True
-            }
+            },
+            "media": [
+                {
+                    "originalSource": image_url,
+                    "alt": item.get("title", ""),
+                    "mediaContentType": "IMAGE",
+                } for image_url in item.get("image_urls", [])
+            ]
         }
+        
         response = shopify.GraphQL().execute(query, params)
         raw = json.loads(response)
         data = raw["data"]
@@ -205,14 +217,6 @@ class ShopifyProductCreateBlock(Block):
         }
 
         for item_variant in item["variants"]:
-            image_url = item_variant.get("image_url", "")
-            if image_url:
-                params["media"].append({
-                    "originalSource": image_url,
-                    "alt": item_variant.get("title", ""),
-                    "mediaContentType": "IMAGE",
-                })
-                
             if item_variant["title"] not in existing_variant_title:
                 variant = {
                     "price": item_variant["price"],
@@ -249,22 +253,6 @@ class ShopifyProductCreateBlock(Block):
             raise ValueError("Could not create product variants", response)
 
         return variants
-
-    def add_product_images(self, product_id: str,  images: list[dict[str, str]]):
-        if not images:
-            return
-
-        query = "mutation productAppendImages($input: ProductAppendImagesInput!) {    productAppendImages(input: $input) {      newImages {        id        altText      }      product {        id      }      userErrors {        field        message      }    }}"
-        params = {
-            "input": {
-                "id": product_id,
-                "images": [{"altText": image.get("alt"), "src": image.get("originalSource")} for image in images]
-            }
-        }
-
-        response = shopify.GraphQL().execute(query, params)
-        print(f"Add images to product {product_id}: ", response)
-
 
     def update_product_variant_price(self, product_id: str, variants: list[dict[str, str]]) -> list[dict[str, str]]:
         query = "mutation updateProductVariantsPrice($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { productVariants { id title price } userErrors { field message } } }"
