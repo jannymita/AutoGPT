@@ -227,11 +227,10 @@ class ShopifyProductCreateBlock(Block):
 
                 params["variants"].append(variant)
 
-        print("---------------------------------------------------------------------------------\n")
-        print(params)
-        print("---------------------------------------------------------------------------------\n")
         # no new variants
         if not params["variants"]:
+            if params["media"]:
+                self.add_product_images(product["id"], params["media"])
             return list()
 
         response = shopify.GraphQL().execute(query, params)
@@ -250,6 +249,22 @@ class ShopifyProductCreateBlock(Block):
             raise ValueError("Could not create product variants", response)
 
         return variants
+
+    def add_product_images(self, product_id: str,  images: list[dict[str, str]]):
+        if not images:
+            return
+
+        query = "mutation productAppendImages($input: ProductAppendImagesInput!) {    productAppendImages(input: $input) {      newImages {        id        altText      }      product {        id      }      userErrors {        field        message      }    }}"
+        params = {
+            "input": {
+                "id": product_id,
+                "images": [{"altText": image.get("alt"), "src": image.get("originalSource")} for image in images]
+            }
+        }
+
+        response = shopify.GraphQL().execute(query, params)
+        print(f"Add images to product {product_id}: ", response)
+
 
     def update_product_variant_price(self, product_id: str, variants: list[dict[str, str]]) -> list[dict[str, str]]:
         query = "mutation updateProductVariantsPrice($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { productVariants { id title price } userErrors { field message } } }"
