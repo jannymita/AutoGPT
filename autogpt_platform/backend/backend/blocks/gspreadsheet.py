@@ -156,7 +156,8 @@ class GSpreadsheetGenerationBlock(Block):
 
         drive_service.permissions().create(
             fileId=spreadsheet_id,
-            body={"type": "anyone", "role": "reader"},
+            # body={"type": "anyone", "role": "reader"},
+            body={"type": "anyone", "role": "writer"},
         ).execute()
 
         return spreadsheet_url
