@@ -1,4 +1,5 @@
 import requests
+from datetime import datetime
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
@@ -149,7 +150,7 @@ class ShopifyThemeInstallBlock(Block):
         url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/themes.json"
         payload = {
             "theme": {
-                "name": "New Theme",
+                "name": f"3TN Default - {datetime.now().strftime('%Y%m%d')}",
                 "src": theme_link,
                 "role": "unpublished"
             }
