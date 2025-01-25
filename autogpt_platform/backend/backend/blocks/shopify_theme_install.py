@@ -1,9 +1,9 @@
-import requests
 import shopify
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
 class ShopifyUploadImageBlock(Block):
+    api_version = "2025-01"
     class Input(BlockSchema):
         shop_name: str = SchemaField(
             description="The Shopify store name",
@@ -40,27 +40,30 @@ class ShopifyUploadImageBlock(Block):
     def upload_image(self, shop_name: str, admin_api_key: str, image_url: str) -> dict:
         if not all([shop_name, admin_api_key, image_url]):
             raise ValueError("Missing one or more required inputs: shop_name, admin_api_key, or image_url")
+        
+        # Create and activate a Shopify session
+        session = shopify.Session(f"https://{shop_name}.myshopify.com", "2025-01", admin_api_key)
+        shopify.ShopifyResource.activate_session(session)
 
-        url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/graphql.json"
         query = """
         mutation fileCreate($files: [FileCreateInput!]!) {
-          fileCreate(files: $files) {
+        fileCreate(files: $files) {
             files {
-              alt
-              id
-              createdAt
-              fileStatus
-              preview {
+            alt
+            id
+            createdAt
+            fileStatus
+            preview {
                 image {
-                  url
+                url
                 }
-              }
+            }
             }
             userErrors {
-              field
-              message
+            field
+            message
             }
-          }
+        }
         }
         """
         variables = {
@@ -72,22 +75,31 @@ class ShopifyUploadImageBlock(Block):
                 }
             ]
         }
-        headers = {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": admin_api_key
-        }
-
-        response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("errors") or data["data"]["fileCreate"]["userErrors"]:
-                raise Exception("Error uploading image: " + str(data))
-            file_data = data["data"]["fileCreate"]["files"][0]
+        
+        try:
+            # Execute the GraphQL query
+            result = shopify.GraphQL().execute(query, variables)
+            data = result.get("data", {})
+            
+            # Check for user errors or general errors
+            user_errors = data.get("fileCreate", {}).get("userErrors", [])
+            if user_errors or "errors" in result:
+                raise Exception(f"Error uploading image: {user_errors or result.get('errors')}")
+            
+            # Extract file data
+            file_data = data["fileCreate"]["files"][0]
             return {
-                "image_name": file_data["alt"]
+                "image_name": file_data["alt"],
+                "file_id": file_data["id"],
+                "created_at": file_data["createdAt"],
+                "file_status": file_data["fileStatus"],
+                "preview_url": file_data["preview"]["image"]["url"]
             }
-        else:
-            raise Exception(f"Failed to upload image: {response.text}")
+        except Exception as e:
+            raise Exception(f"Failed to upload image: {str(e)}")
+        finally:
+            # Clear the session after use
+            shopify.ShopifyResource.clear_session()
     
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
         try:
@@ -102,6 +114,7 @@ class ShopifyUploadImageBlock(Block):
             yield "error", f"An error occurred: {e}"
 
 class ShopifyThemeInstallBlock(Block):
+    api_version = "2025-01"
     class Input(BlockSchema):
         theme_link: str = SchemaField(
             description="The link to the Shopify theme to install",
@@ -192,7 +205,7 @@ class ShopifyThemeInstallBlock(Block):
             else:
                 raise Exception("Failed to install theme: Unknown error")
         except Exception as e:
-            raise Exception(f"Error occurred while installing theme: {str(e)}")
+            raise Exception(f"Error occurred while installing theme: {str(e)}")           
     
     
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
@@ -207,9 +220,10 @@ class ShopifyThemeInstallBlock(Block):
             session = shopify.Session(shop_url, self.api_version, admin_api_key)
             shopify.ShopifyResource.activate_session(session)
 
-
             # Call the install_theme method with the extracted input data
             result = self.install_theme(theme_link, shop_name, admin_api_key)
+            # Clear the session after use
+            shopify.ShopifyResource.clear_session()
 
             yield "shop_name", result["shop_name"]
             yield "theme_id", result["theme_id"]

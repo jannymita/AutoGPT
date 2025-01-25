@@ -1,4 +1,3 @@
-import requests
 import shopify
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
@@ -61,13 +60,12 @@ class CreateCollectionBlock(Block):
                 raise ValueError(f"Collection '{key}' must have a 'collection' field.")
             
 
-    @staticmethod
-    def create_smart_collection(input_data, collection_data):
+    def create_smart_collection(self, input_data, collection_data):
         """Create smart collections based on tag conditions using Shopify GraphQL API."""
         
         # Set up the Shopify session
         shop_url = f"https://{input_data.shop_name}.myshopify.com"
-        session = shopify.Session(shop_url, input_data.api_version, input_data.admin_api_key)
+        session = shopify.Session(shop_url, self.api_version, input_data.admin_api_key)
         shopify.ShopifyResource.activate_session(session)
 
         collection_ids = {}
@@ -79,7 +77,7 @@ class CreateCollectionBlock(Block):
         {"key": "collection_NewComing", "collection": "new-coming", "title": "New Coming"},
         {"key": "collection_Featured", "collection": "featured", "title": "Featured"},
         {"key": "collection_Discover", "collection": "discover", "title": "Discover"}
-]
+        ]
 
         for new_collection in new_collections:
             collection_data[new_collection["key"]] = {
@@ -125,7 +123,8 @@ class CreateCollectionBlock(Block):
 
             params = {
                 "title": collection_title,
-                "tagCondition": tag_condition
+                # Use the collection tag as the tag condition
+                "tagCondition": collection_title
             }
 
             try:
@@ -153,7 +152,7 @@ class CreateCollectionBlock(Block):
         """Run the block with the provided input data."""
         try:
             # Validate the input data
-            self.validate_input_data(input_data.collection_data)
+            #self.validate_input_data(input_data.collection_data)
 
             # Create the smart collections using tags and get the results
             collection_ids, collection_handles = self.create_smart_collection(

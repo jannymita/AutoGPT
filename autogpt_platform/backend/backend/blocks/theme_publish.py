@@ -150,6 +150,7 @@ class ThemePublishBlock(Block):
 
             # Call the publish_theme method with the extracted input data
             self.publish_theme(theme_id, shop_name, admin_api_key)
+            shopify.ShopifyResource.clear_session()
 
             yield "theme_id", theme_id,
             yield "shop_link", f"https://{shop_name}.myshopify.com"
