@@ -114,7 +114,7 @@ class CSVBlock(Block):
     def make_file_public(self, spreadsheet_id: str, drive_service):
         permission_body = {
             "type": "anyone",  # Make it accessible to anyone with the link
-            "role": "reader"   # Use "writer" if you want others to edit the file
+            "role": "writer"   # Use "writer" if you want others to edit the file
         }
         
         # Set the file permissions using the Drive API
