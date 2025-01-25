@@ -59,8 +59,6 @@ class CreateCollectionBlock(Block):
         for key, collection in collection_data.items():
             if not collection.get("settings", {}).get("collection"):
                 raise ValueError(f"Collection '{key}' must have a 'collection' field.")
-            if not collection.get("settings", {}).get("title"):
-                raise ValueError(f"Collection '{key}' must have a 'title' field.")
             
 
     @staticmethod
@@ -75,10 +73,27 @@ class CreateCollectionBlock(Block):
         collection_ids = {}
         collection_handles = {}
 
+        new_collections = [
+        {"key": "collection_HotDeals", "collection": "hot-deals", "title": "Hot Deals"},
+        {"key": "collection_Trending", "collection": "trending", "title": "Trending"},
+        {"key": "collection_NewComing", "collection": "new-coming", "title": "New Coming"},
+        {"key": "collection_Featured", "collection": "featured", "title": "Featured"},
+        {"key": "collection_Discover", "collection": "discover", "title": "Discover"}
+]
+
+        for new_collection in new_collections:
+            collection_data[new_collection["key"]] = {
+                "type": "collection",
+                "settings": {
+                    "collection": new_collection["collection"],
+                    "title": new_collection["title"]
+                }
+            }
+
         for collection_key, collection in collection_data.items():
             settings = collection.get("settings", {})
-            collection_title = settings.get("title")
-            tag_condition = settings.get("title")
+            collection_title = settings.get("title", "") or settings.get("collection", "")
+            print("-------------------------", collection_title)
 
             # Construct the GraphQL query for creating the Smart Collection
             query = """

@@ -3,6 +3,104 @@ import shopify
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
+class ShopifyUploadImageBlock(Block):
+    class Input(BlockSchema):
+        shop_name: str = SchemaField(
+            description="The Shopify store name",
+        )
+        admin_api_key: str = SchemaField(
+            description="The API key of the Shopify store",
+        )
+        image_url: str = SchemaField(
+            description="The URL of the image to upload",
+        )
+
+    class Output(BlockSchema):
+        image_name: str = SchemaField(
+            description="The name of the uploaded image",
+        )
+
+    def __init__(self):
+        super().__init__(
+            id="a3c8fbc9-d7e8-432b-a4a1-fb4db9f8b1a1",
+            description="This block uploads an image to a Shopify store.",
+            categories={BlockCategory.SHOPIFY},
+            input_schema=ShopifyUploadImageBlock.Input,
+            output_schema=ShopifyUploadImageBlock.Output,
+            test_input={
+                "shop_name": "shop-1.myshopify.com",
+                "admin_api_key": "your-admin-api-key",
+                "image_url": "https://example.com/image.jpg"
+            },
+            test_output={
+                "image_name": "image.jpg"
+            }
+        )
+
+    def upload_image(self, shop_name: str, admin_api_key: str, image_url: str) -> dict:
+        if not all([shop_name, admin_api_key, image_url]):
+            raise ValueError("Missing one or more required inputs: shop_name, admin_api_key, or image_url")
+
+        url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/graphql.json"
+        query = """
+        mutation fileCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              alt
+              id
+              createdAt
+              fileStatus
+              preview {
+                image {
+                  url
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        variables = {
+            "files": [
+                {
+                    "alt": "out-0.webp",
+                    "contentType": "IMAGE",
+                    "originalSource": image_url
+                }
+            ]
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": admin_api_key
+        }
+
+        response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("errors") or data["data"]["fileCreate"]["userErrors"]:
+                raise Exception("Error uploading image: " + str(data))
+            file_data = data["data"]["fileCreate"]["files"][0]
+            return {
+                "image_name": file_data["alt"]
+            }
+        else:
+            raise Exception(f"Failed to upload image: {response.text}")
+    
+    def run(self, input_data: Input, **kwargs) -> BlockOutput:
+        try:
+            shop_name = input_data.shop_name
+            admin_api_key = input_data.admin_api_key
+            image_url = input_data.image_url
+
+            result = self.upload_image(shop_name, admin_api_key, image_url)
+
+            yield "image_name", result["image_name"]
+        except Exception as e:
+            yield "error", f"An error occurred: {e}"
+
 class ShopifyThemeInstallBlock(Block):
     class Input(BlockSchema):
         theme_link: str = SchemaField(
