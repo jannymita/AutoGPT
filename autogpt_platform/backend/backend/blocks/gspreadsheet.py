@@ -95,7 +95,7 @@ class GSpreadsheetBlock(Block):
             yield "error", f"An error occurred: {e}"  
 
 class GSpreadsheetGenerationBlock(Block):
-    scopes: list[str] = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    scopes: list[str] = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file"]
 
     class Input(BlockSchema):
         csv_text: str = SchemaField(
