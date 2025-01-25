@@ -89,7 +89,8 @@ class CreateCollectionBlock(Block):
 
         for collection_key, collection in collection_data.items():
             settings = collection.get("settings", {})
-            collection_title = settings.get("title", settings.get("collection", ""))
+            collection_title = settings.get("title", "") or settings.get("collection", "")
+            print("-------------------------", collection_title)
 
             # Construct the payload for creating the Smart Collection
             payload = {
