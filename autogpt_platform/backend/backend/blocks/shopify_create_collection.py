@@ -73,7 +73,7 @@ class CreateCollectionBlock(Block):
         new_collections = [
         {"key": "collection_HotDeals", "collection": "hot-deals", "title": "Hot Deals"},
         {"key": "collection_Trending", "collection": "trending", "title": "Trending"},
-        {"key": "collection_NewComing", "collection": "new-coming", "title": "New Coming"},
+        {"key": "collection_Latest", "collection": "new-coming", "title": "Latest"},
         {"key": "collection_Featured", "collection": "featured", "title": "Featured"},
         {"key": "collection_Discover", "collection": "discover", "title": "Discover"}
 ]
