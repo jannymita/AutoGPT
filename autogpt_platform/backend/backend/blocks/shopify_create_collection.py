@@ -61,9 +61,7 @@ class CreateCollectionBlock(Block):
         for key, collection in collection_data.items():
             if not collection.get("settings", {}).get("collection"):
                 raise ValueError(f"Collection '{key}' must have a 'collection' field.")
-            if not collection.get("settings", {}).get("title"):
-                raise ValueError(f"Collection '{key}' must have a 'title' field.")
-
+            
     def create_smart_collection(self, shop_name, admin_api_key, collection_data):
         """Create smart collections based on tag conditions using Shopify API."""
         url = f"https://{shop_name}.myshopify.com/admin/api/2025-01/smart_collections.json"
@@ -91,8 +89,7 @@ class CreateCollectionBlock(Block):
 
         for collection_key, collection in collection_data.items():
             settings = collection.get("settings", {})
-            collection_title = settings.get("title")
-            tag_condition = settings.get("title")
+            collection_title = settings.get("title", settings.get("collection", ""))
 
             # Construct the payload for creating the Smart Collection
             payload = {
@@ -105,7 +102,12 @@ class CreateCollectionBlock(Block):
                         {
                             "column": "tag",  # Column to filter by (tags)
                             "relation": "equals",  # Relation to apply (equals)
-                            "condition": tag_condition  # Tag condition for the smart collection
+                            "condition": collection_title  # Tag condition for the smart collection
+                        },
+                        {
+                            "column": "tag",  # Column to filter by (tags)
+                            "relation": "equals",  # Relation to apply (equals)
+                            "condition": collection_title.lower()  # Tag condition for the smart collection
                         }
                     ],
                     "disjunctive": True  # Set to False if all conditions must be met (AND logic)
