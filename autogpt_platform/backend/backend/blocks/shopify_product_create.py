@@ -228,7 +228,7 @@ class ShopifyProductCreateBlock(Block):
                 params["variants"].append(variant)
 
         print("---------------------------------------------------------------------------------\n")
-        print(params["media"])
+        print(params)
         print("---------------------------------------------------------------------------------\n")
         # no new variants
         if not params["variants"]:
