@@ -1,4 +1,5 @@
 import shopify
+import json
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
@@ -11,7 +12,6 @@ class CreateCollectionBlock(Block):
 
     class Output(BlockSchema):
         collection_ids: dict = SchemaField(description="A dictionary of collection IDs")
-        collection_handles: dict = SchemaField(description="A dictionary of collection handles")
 
     def __init__(self):
         super().__init__(
@@ -45,10 +45,6 @@ class CreateCollectionBlock(Block):
                     "collection_rznnLq": "123456789",
                     "collection_KdHXk9": "987654321"
                 },
-                "collection_handles": {
-                    "collection_rznnLq": "mens-clothing",
-                    "collection_KdHXk9": "womens-clothing"
-                },
             },
         )
 
@@ -60,16 +56,11 @@ class CreateCollectionBlock(Block):
                 raise ValueError(f"Collection '{key}' must have a 'collection' field.")
             
 
-    def create_smart_collection(self, input_data, collection_data):
+    def create_smart_collection(self, collection_data):
         """Create smart collections based on tag conditions using Shopify GraphQL API."""
-        
-        # Set up the Shopify session
-        shop_url = f"https://{input_data.shop_name}.myshopify.com"
-        session = shopify.Session(shop_url, self.api_version, input_data.admin_api_key)
-        shopify.ShopifyResource.activate_session(session)
 
+        print("Creating smart collections...")
         collection_ids = {}
-        collection_handles = {}
 
         new_collections = [
         {"key": "collection_HotDeals", "collection": "hot-deals", "title": "Hot Deals"},
@@ -95,47 +86,59 @@ class CreateCollectionBlock(Block):
 
             # Construct the GraphQL query for creating the Smart Collection
             query = """
-            mutation createSmartCollection($title: String!, $tagCondition: String!) {
-                smartCollectionCreate(input: {
-                    title: $title,
-                    bodyHtml: " ",
-                    published: true,
-                    rules: [
-                        {
-                            column: TAG,
-                            relation: EQUALS,
-                            condition: $tagCondition
-                        }
-                    ],
-                    disjunctive: false
-                }) {
-                    smartCollection {
-                        id
-                        handle
-                    }
-                    userErrors {
+            mutation CollectionCreate($input: CollectionInput!) {
+                    collectionCreate(input: $input) {
+                        userErrors {
                         field
                         message
+                        }
+                        collection {
+                        id
+                        title
+                        descriptionHtml
+                        handle
+                        sortOrder
+                        ruleSet {
+                            appliedDisjunctively
+                            rules {
+                            column
+                            relation
+                            condition
+                            }
+                        }
+                        }
                     }
                 }
-            }
             """
 
             params = {
-                "title": collection_title,
-                # Use the collection tag as the tag condition
-                "tagCondition": collection_title
+                {
+                    "input": {
+                        "title": collection_title,
+                        "descriptionHtml": collection_title,
+                        "ruleSet": {
+                        "appliedDisjunctively": False, #Whether products must match any or all of the rules to be included in the collection. If true, then products must match at least one of the rules to be included in the collection. If false, then products must match all of the rules to be included in the collection.
+                        "rules": {
+                            "column": "TAG",
+                            "relation": "EQUALS",
+                            "condition": collection_title
+                            }
+                        }
+                    }
+                }
+
             }
 
             try:
+                print("sending request")
                 # Execute the GraphQL query
                 response = shopify.GraphQL().execute(query, params)
+                response = json.loads(response)
 
                 # Check for errors in the response
-                if 'data' in response and 'smartCollectionCreate' in response['data']:
-                    created_collection = response['data']['smartCollectionCreate']['smartCollection']
+                if 'data' in response and 'collectionCreate' in response['data']:
+                    created_collection = response['data']['collectionCreate']['collection']
                     collection_ids[collection_key] = created_collection['id']
-                    collection_handles[collection_key] = created_collection['handle']
                 else:
                     errors = response.get('errors', [])
                     if errors:
@@ -146,23 +149,27 @@ class CreateCollectionBlock(Block):
             except Exception as e:
                 raise ValueError(f"Error executing GraphQL request for collection '{collection_key}': {str(e)}")
 
-        return collection_ids, collection_handles
+        return collection_ids
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
         """Run the block with the provided input data."""
         try:
+
+            # Set up the Shopify session
+            shop_url = f"https://{input_data.shop_name}.myshopify.com"
+            session = shopify.Session(shop_url, self.api_version, input_data.admin_api_key)
+            shopify.ShopifyResource.activate_session(session)
             # Validate the input data
-            #self.validate_input_data(input_data.collection_data)
+            self.validate_input_data(input_data.collection_data)
 
             # Create the smart collections using tags and get the results
-            collection_ids, collection_handles = self.create_smart_collection(
-                input_data,
-                input_data.collection_data,
-            )
+
+            collection_ids = self.create_smart_collection(input_data.collection_data)
+
+            shopify.ShopifyResource.clear_session()
 
             # Yield the collection IDs and handles as output
-            yield "collection_ids", collection_ids
-            yield "collection_handles", collection_handles
+            yield "collection_ids", {}
 
         except ValueError as ve:
             # Handle validation errors

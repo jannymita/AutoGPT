@@ -1,4 +1,5 @@
 import shopify
+import json
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
 
@@ -130,7 +131,7 @@ class ShopifyThemeInstallBlock(Block):
         shop_name: str = SchemaField(
             description="The name of the Shopify store",
         )
-        theme_id: int = SchemaField(
+        theme_id: str = SchemaField(
             description="The ID of the installed Shopify theme",
         )
         theme_name: str = SchemaField(
@@ -158,40 +159,44 @@ class ShopifyThemeInstallBlock(Block):
 
     @staticmethod
     def install_theme(theme_link: str, shop_name: str, admin_api_key: str) -> dict:
+
+        print("install_theme =============================>")
         """Install a theme using the Shopify GraphQL API."""
 
         # GraphQL mutation to install the theme
         query = """
-        mutation installTheme($themeSrc: String!) {
-            themeCreate(input: {
-                name: "New Theme",
-                src: $themeSrc,
-                role: UNPUBLISHED
-            }) {
-                theme {
-                    id
-                    name
-                    role
+            mutation themeCreate($source: URL!, $name: String!) {
+                    themeCreate(source: $source, name: $name) {
+                        theme {
+                        id
+                        name
+                        role
+                        }
+                        userErrors {
+                        field
+                        message
+                        }
+                    }
                 }
-                userErrors {
-                    field
-                    message
-                }
-            }
-        }
         """
 
         params = {
-            "themeSrc": theme_link
+            "source": theme_link,
+            "name": "new theme"
         }
 
         try:
             # Execute the GraphQL mutation
             response = shopify.GraphQL().execute(query, params)
 
+            # Parse the response as JSON (if necessary)
+            if isinstance(response, str):
+                response = json.loads(response)  # Ensure the response is parsed into a dictionary
+
             # Check for errors in the response
             if 'data' in response and 'themeCreate' in response['data']:
                 theme_data = response['data']['themeCreate']['theme']
+                print("theme_data  =============================>", theme_data)
                 if theme_data:
                     return {
                         "shop_name": shop_name,
@@ -204,8 +209,10 @@ class ShopifyThemeInstallBlock(Block):
                     raise Exception(f"Error installing theme: {errors}")
             else:
                 raise Exception("Failed to install theme: Unknown error")
+        except json.JSONDecodeError:
+            raise Exception("Error: Response is not valid JSON")
         except Exception as e:
-            raise Exception(f"Error occurred while installing theme: {str(e)}")           
+            raise Exception(f"Error occurred while installing theme: {str(e)}")         
     
     
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
@@ -215,11 +222,14 @@ class ShopifyThemeInstallBlock(Block):
             shop_name = input_data.shop_name
             admin_api_key = input_data.admin_api_key
 
+            print("bat dau ne ")
+
             # Set up the Shopify session
             shop_url = f"https://{shop_name}.myshopify.com"
             session = shopify.Session(shop_url, self.api_version, admin_api_key)
             shopify.ShopifyResource.activate_session(session)
 
+            print("bat dau ne 2")
             # Call the install_theme method with the extracted input data
             result = self.install_theme(theme_link, shop_name, admin_api_key)
             # Clear the session after use

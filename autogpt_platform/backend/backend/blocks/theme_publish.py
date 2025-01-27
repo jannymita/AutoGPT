@@ -3,6 +3,7 @@ from backend.data.model import SchemaField
 import requests
 import time
 import shopify
+import json
 
 class ThemePublishBlock(Block):
     api_version = "2025-01"
@@ -45,45 +46,41 @@ class ThemePublishBlock(Block):
     
     def publish_theme(self, theme_id, shop_name, admin_api_key):
         """Publish a theme as the main theme using the Shopify GraphQL API."""
-        
-        shop_url = f"https://{shop_name}.myshopify.com"
-        session = shopify.Session(shop_url, '2025-01', admin_api_key)
-        shopify.ShopifyResource.activate_session(session)
 
         query = """
-        mutation publishTheme($themeId: ID!) {
-            themeUpdate(input: {
-                id: $themeId,
-                role: MAIN
-            }) {
-                theme {
+        mutation themePublish($id: ID!) {
+                themePublish(id: $id) {
+                    theme {
                     id
-                    role
-                }
-                userErrors {
+                    }
+                    userErrors {
+                    code
                     field
                     message
+                    }
                 }
             }
-        }
         """
 
         params = {
-            "themeId": f"gid://shopify/Theme/{theme_id}"
+            "id": theme_id
         }
 
         try:
             # Execute the GraphQL mutation to publish the theme
             response = shopify.GraphQL().execute(query, params)
+            # Parse the response if it is a string
+            if isinstance(response, str):
+                response = json.loads(response)
 
             # Check if there are errors in the response
-            if 'data' in response and 'themeUpdate' in response['data']:
-                theme = response['data']['themeUpdate']['theme']
-                if theme and theme['role'] == 'MAIN':
+            if 'data' in response and 'themePublish' in response['data']:
+                theme = response['data']['themePublish']['theme']
+                if theme:
                     print(f"Theme with ID {theme_id} has been set as the main theme.")
                     return {"theme_id": theme_id}
                 else:
-                    errors = response['data']['themeUpdate']['userErrors']
+                    errors = response['data']['themePublish']['userErrors']
                     raise Exception(f"Error publishing theme '{theme_id}': {errors}")
             else:
                 raise Exception(f"Unknown error while publishing theme '{theme_id}'")
@@ -91,9 +88,11 @@ class ThemePublishBlock(Block):
         except Exception as e:
             raise Exception(f"Error occurred while publishing theme '{theme_id}': {str(e)}")
 
-    def wait_for_theme_installation(self, theme_id, timeout=300, interval=10):
-        """Wait for the theme installation to complete using the Shopify GraphQL API."""
-        
+    def wait_for_theme_installation(self, theme_id):
+
+        timeout=300
+        interval=10
+
         query = """
         query checkThemeInstallation($themeId: ID!) {
             theme(id: $themeId) {
@@ -104,15 +103,19 @@ class ThemePublishBlock(Block):
         """
 
         params = {
-            "themeId": f"gid://shopify/Theme/{theme_id}"
+            "themeId": theme_id
         }
 
         start_time = time.time()
 
-        while time.time() - start_time < timeout:
+        while time.time() - start_time < float(timeout):
             try:
                 # Execute the GraphQL query to check the theme status
                 response = shopify.GraphQL().execute(query, params)
+
+                # Parse the response if it is a string
+                if isinstance(response, str):
+                    response = json.loads(response)
 
                 # Check if theme processing status is available
                 if 'data' in response and 'theme' in response['data']:
@@ -139,14 +142,13 @@ class ThemePublishBlock(Block):
             theme_id = input_data.theme_id
             shop_name = input_data.shop_name
             admin_api_key = input_data.admin_api_key
-
             # Set up the Shopify session
             shop_url = f"https://{shop_name}.myshopify.com"
             session = shopify.Session(shop_url, self.api_version, admin_api_key)
             shopify.ShopifyResource.activate_session(session)
 
             print(f"Publishing theme with ID: {theme_id} for shop: {shop_name}")
-            self.wait_for_theme_installation(theme_id, shop_name, admin_api_key)
+            self.wait_for_theme_installation(theme_id)
 
             # Call the publish_theme method with the extracted input data
             self.publish_theme(theme_id, shop_name, admin_api_key)
