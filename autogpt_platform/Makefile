@@ -8,6 +8,7 @@ reload-be:
 	docker compose restart rest_server executor websocket_server;
 
 rebuild-be:
+	docker compose build rest_server executor websocket_server;
 	docker compose stop rest_server executor websocket_server;
 	docker compose rm -f rest_server executor websocket_server;
 	docker compose up -d rest_server executor websocket_server;
