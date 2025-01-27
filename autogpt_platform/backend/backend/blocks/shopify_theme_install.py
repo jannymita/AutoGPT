@@ -184,7 +184,6 @@ class ShopifyThemeInstallBlock(Block):
             # Check for errors in the response
             if 'data' in response and 'themeCreate' in response['data']:
                 theme_data = response['data']['themeCreate']['theme']
-                print("theme_data  =============================>", theme_data)
                 if theme_data:
                     return {
                         "shop_name": shop_name,
