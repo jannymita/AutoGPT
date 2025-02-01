@@ -49,7 +49,7 @@ class ShopifyInitializeBlock(Block):
             yield "shop_url", "https://example.com"
             return
 
-        shop_url = self.create_shopify_store(input_data.shop_name)
+        shop_url = self.create_shopify_store(input_data.shop_name, input_data.country_code)
 
         # Delay for the specified amount of time
         time.sleep(input_data.wait_for_complete_seconds)
