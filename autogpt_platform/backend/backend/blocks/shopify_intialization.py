@@ -14,6 +14,10 @@ class ShopifyInitializeBlock(Block):
         shop_name: str = SchemaField(
             description="The name of Shopify shop and subdomain",
         )
+        country_code: str = SchemaField(
+            description="The primary country of the Shopify store",
+            default="SG",
+        )
         wait_for_complete_seconds: int = SchemaField(
             description="The number of seconds to wait for the store to be created",
             default=15,
@@ -52,7 +56,7 @@ class ShopifyInitializeBlock(Block):
         yield "shop_name", input_data.shop_name
         yield "shop_url", shop_url
 
-    def create_shopify_store(self, shop_name):
+    def create_shopify_store(self, shop_name: str, country_code: str):
         # Retrieve environment variables
         encoded_cookie = os.getenv("SHOPIFY_INTEGRATION_PARTNER_COOKIE")
         if not encoded_cookie:
@@ -68,7 +72,7 @@ class ShopifyInitializeBlock(Block):
         if not partner_id:
             raise EnvironmentError("Environment variable 'SHOPIFY_INTEGRATION_PARTNER_ID' is not set.")
         
-        country_code = os.getenv("SHOPIFY_INTEGRATION_COUNTRY_CODE", "VN")
+        country_code = country_code if country_code else os.getenv("SHOPIFY_INTEGRATION_COUNTRY_CODE", "SG")
 
         # Define the endpoint and headers
         url = f"https://partners.shopify.com/{partner_id}/api/graphql"
