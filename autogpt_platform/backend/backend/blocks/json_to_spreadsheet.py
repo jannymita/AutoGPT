@@ -84,8 +84,18 @@ class JsonToSpreadsheetBlock(Block):
 
         # Convert the JSON data to a Google Sheets compatible format
         body = {
-            "values": [[key for key in data[0]]] + [[row[key] for key in row] for row in data]
+            "values": [[key for key in data[0]]]
         }
+        for row in data:
+            values = []
+            for key in row:
+                if isinstance(row[key], list):
+                    values.append(",".join(row[key]))
+                elif  isinstance(row[key], (int, float, str, bool)):
+                    values.append(row[key])
+                else:
+                    values.append(json.dumps(row[key]))
+            body["values"].append(values)
 
         # Update the spreadsheet with parsed data
         sheet.values().update(
