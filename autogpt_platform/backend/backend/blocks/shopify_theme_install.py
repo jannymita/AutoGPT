@@ -121,6 +121,10 @@ class ShopifyThemeInstallBlock(Block):
         admin_api_key: str = SchemaField(
             description="The API key of the Shopify store",
         )
+        theme_name: str = SchemaField(
+            description="The name of the installed Shopify theme",
+            default=None
+        )
 
     class Output(BlockSchema):
         shop_name: str = SchemaField(
@@ -153,8 +157,7 @@ class ShopifyThemeInstallBlock(Block):
         )
 
     @staticmethod
-    def install_theme(theme_link: str, shop_name: str) -> dict:
-
+    def install_theme(theme_link: str, shop_name: str, theme_name: str) -> dict:
         """Install a theme using the Shopify GraphQL API."""
 
         # GraphQL mutation to install the theme
@@ -176,7 +179,7 @@ class ShopifyThemeInstallBlock(Block):
 
         params = {
             "source": theme_link,
-            "name": "new theme"
+            "name": theme_name if theme_name else shop_name
         }
 
         try:
@@ -194,7 +197,6 @@ class ShopifyThemeInstallBlock(Block):
                     return {
                         "shop_name": shop_name,
                         "theme_id": theme_data.get("id"),
-                        "theme_name": theme_data.get("name"),
                     }
                 else:
                     # Handle user errors if any
@@ -214,6 +216,7 @@ class ShopifyThemeInstallBlock(Block):
             theme_link = input_data.theme_link
             shop_name = input_data.shop_name
             admin_api_key = input_data.admin_api_key
+            theme_name = input_data.theme_name if input_data.theme_name else shop_name
 
             # Set up the Shopify session
             shop_url = f"https://{shop_name}.myshopify.com"
@@ -221,11 +224,11 @@ class ShopifyThemeInstallBlock(Block):
             shopify.ShopifyResource.activate_session(session)
 
             # Call the install_theme method with the extracted input data
-            result = self.install_theme(theme_link, shop_name)
+            result = self.install_theme(theme_link, shop_name, theme_name)
 
             yield "shop_name", result["shop_name"]
             yield "theme_id", result["theme_id"]
-            yield "theme_name", result["theme_name"]
+            yield "theme_name", theme_name
         except Exception as e:
             yield "error", f"An error occurred: {e}"
         finally:
