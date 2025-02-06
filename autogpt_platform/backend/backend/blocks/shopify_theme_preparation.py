@@ -3,9 +3,7 @@ import shutil
 from datetime import datetime
 import zipfile
 import boto3
-import subprocess
 import json
-import stat
 
 from backend.data.block import Block, BlockCategory, BlockOutput, BlockSchema
 from backend.data.model import SchemaField
@@ -18,17 +16,21 @@ class ShopifyThemePreparationBlock(Block):
             description="The name of Shopify shop and subdomain",
         )
         admin_api_key: str = SchemaField(description="Shopify app API key for Admin API")
-        theme_template_index_json: str = SchemaField(
-            description="The theme template index json",
+        theme_id: str = SchemaField(
+            description="The ID of the theme to user selected",
+        )
+        theme_params: str = SchemaField(
+            description="The parameters of the theme",
+        )
+        theme_params_extra: dict[str, str] = SchemaField(
+            description="Extra parameters of the theme",
+            default={},
         )
 
     class Output(BlockSchema):
         shop_name: str = SchemaField(description="The shop name on Shopify")
+        theme_id: str = SchemaField(description="The ID of the theme to user selected")
         theme_zip_url: str = SchemaField(description="The public url of a zip file containing the theme")
-        collections: dict = SchemaField(
-          description="The collections to create",
-        )
-
 
     def __init__(self):
         super().__init__(
@@ -40,68 +42,69 @@ class ShopifyThemePreparationBlock(Block):
             test_input=[
                 {"shop_name": "3tn-demo"},
                 {"admin_api_key": "*********************************************"},
-                {"theme_template_index_json": "\{\}"},
+                {"theme_params": "\{\}"},
+                {"theme_params_extra": {}},
             ],
             test_output=[
                 ("shop_name", "3tn-demo"),
                 ("theme_zip_url", "https://3tn-autogpt.s3.ap-southeast-1.amazonaws.com/shopify/theme/20250123/ks-bootshop-master.zip"),
-                ("collections", {"collection_kRQqkR": {"type": "collection", "settings": {"collection": "sale", "title": ""}}})
             ],
         )
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
-      url = self.process_and_upload(input_data.theme_template_index_json,input_data.shop_name)
-      collections = self.get_collections(input_data.theme_template_index_json)
+      url = self.process_and_upload(input_data.shop_name, input_data.theme_id, input_data.theme_params, input_data.theme_params_extra)
       yield "shop_name", input_data.shop_name
+      yield "theme_id", input_data.theme_id
       yield "theme_zip_url", url
-      yield "collections", collections
 
-    def process_and_upload(self, config_json: str, shopname: str):
+    def process_and_upload(self, shopname: str, theme_id: str, theme_params_text: str, theme_params_extra: dict[str, str]):
       # Define constants
-      repo_url = "https://github.com/kondasoft/ks-bootshop.git"
       bucket_name = "3tn-autogpt"
       s3_region = "ap-southeast-1"
       s3_folder = "shopify/theme"
 
-      # Create a timestamp for uniqueness
-      timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
       temp_dir = "/var/tmp/templates"
-      zip_filename = f"ks-bootshop-{shopname}-{timestamp}.zip"  # Corrected zip filename without path
-      zip_file_path = os.path.join(temp_dir, zip_filename)  # Full path for zipping
-      backup_dir = os.path.join(temp_dir, f"ks-bootshop_backup_{timestamp}")
-
-      repo_dir = "/app/autogpt_platform/backend/backend/blocks/ks-bootshop"
-      
       # Ensure temporary directory exists
       if not os.path.exists(temp_dir):
           os.makedirs(temp_dir)
 
+      theme_template_dir = f"/app/autogpt_platform/backend/backend/templates/{theme_id}"
+
+      # Create a timestamp for uniqueness
+      timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+      zip_filename = f"{theme_id}-{shopname}-{timestamp}.zip"  # Corrected zip filename without path
+      zip_file_path = os.path.join(temp_dir, zip_filename)  # Full path for zipping
+      theme_dir = os.path.join(temp_dir, f"{theme_id}_{timestamp}")
+
       # Backup the folder before making changes
-      if os.path.exists(repo_dir):
+      if os.path.exists(theme_template_dir):
           try:
-              shutil.copytree(repo_dir, backup_dir)
-              print(f"Backup created at: {backup_dir}")
+              shutil.copytree(theme_template_dir, theme_dir)
           except Exception as e:
-              raise Exception(f"Failed to create backup: {e}")
+              raise Exception(f"Unable to process the selected theme {theme_id}: {e}")
       else:
-          raise FileNotFoundError(f"Repository directory not found: {repo_dir}")
-
-      # Step 2: Replace data in templates/index.json
-      template_path = os.path.join(backup_dir, "templates", "index.json")
-      if os.path.exists(template_path):
-          with open(template_path, "w") as file:
-              file.write(config_json)
-          print(f"Updated JSON file at: {template_path}")
-      else:
-          raise FileNotFoundError(f"Template file not found at {template_path}")
-
+          raise FileNotFoundError(f"The theme {theme_id} does not exist")
+      
+      theme_params = json.loads(theme_params_text)
+      for filename, kv in theme_params.items():
+          file_path = os.path.join(theme_dir, filename)
+          with open(file_path, "r+") as file:
+              file_content = file.read()
+              for key, value in kv.items():
+                  file_content = file_content.replace(key, value)
+              for key, value in theme_params_extra.items():
+                  file_content = file_content.replace("{{" + key + "}}", value)
+              file.seek(0)
+              file.write(file_content)
+              file.truncate()
+          
       # Step 3: Zip the modified repository
       try:
           with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-              for root, _, files in os.walk(backup_dir):
+              for root, _, files in os.walk(theme_dir):
                   for file in files:
                       file_path = os.path.join(root, file)
-                      arcname = os.path.relpath(file_path, start=backup_dir)
+                      arcname = os.path.relpath(file_path, start=theme_dir)
                       zipf.write(file_path, arcname)
           print(f"Zipped folder to {zip_file_path}")
       except Exception as e:
@@ -120,7 +123,7 @@ class ShopifyThemePreparationBlock(Block):
       # Step 5: Clean up local files and folders
       try:
           os.remove(zip_file_path)  # Remove the zip file
-          shutil.rmtree(backup_dir)  # Remove the backup directory
+          shutil.rmtree(theme_dir)  # Remove the backup directory
           print(f"Deleted local zip file and backup directory")
       except Exception as e:
           raise Exception(f"Failed during cleanup: {e}")
@@ -128,14 +131,4 @@ class ShopifyThemePreparationBlock(Block):
       # Step 6: Return the S3 URL
       s3_url = f"https://{bucket_name}.s3.{s3_region}.amazonaws.com/{s3_key}"
       return s3_url
-    
-    @staticmethod
-    def get_collections(data) -> dict:
-      try:
-        parsed_data = json.loads(data)  # Parse the JSON string into a dictionary
-      except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON data: {e}")
-      collections_section = parsed_data.get("sections", {}).get("featured_collections_n3Br7m", {})
-      blocks = collections_section.get("blocks", {})
-      
-      return blocks
+     

@@ -1,0 +1,45 @@
+<div class="w-full border-none py-6 no-js:hidden md:py-8 lg:py-12">
+  <product-recommendations
+    class="grid gap-4 md:gap-8"
+    data-url="{{ routes.product_recommendations_url }}?section_id={{ section.id }}&product_id={{ product.id }}&limit={{ section.settings.products_to_show }}"
+    client:visible
+  >
+    {%- if recommendations.performed and recommendations.products_count > 0 -%}
+      <h2 class="max-w-prose px-6 font-heading text-lead font-heading-weight md:px-8 lg:px-12">
+        {{ section.settings.heading | escape }}
+      </h2>
+      <div class="swimlane hidden-scroll md:scroll-px-8 md:px-8 md:pb-8 lg:scroll-px-12 lg:px-12">
+        {%- for recommendation in recommendations.products -%}
+          {% render 'card-product', card_product: recommendation, wrapper_class: 'w-80' %}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+  </product-recommendations>
+</div>
+
+{% schema %}
+{
+  "name": "Product recommendations",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Dynamic recommendations use order and product information to change and improve over time. [Learn more](https://help.shopify.com/themes/development/recommended-products)"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "default": "You may also like",
+      "label": "Heading"
+    },
+    {
+      "type": "range",
+      "id": "products_to_show",
+      "min": 2,
+      "max": 10,
+      "step": 1,
+      "default": 5,
+      "label": "Maximum products to show"
+    }
+  ]
+}
+{% endschema %}

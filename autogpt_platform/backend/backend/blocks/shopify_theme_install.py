@@ -21,6 +21,9 @@ class ShopifyUploadImageBlock(Block):
         image_name: str = SchemaField(
             description="The name of the uploaded image",
         )
+        image_id: str = SchemaField(
+            description="The id of the uploaded image",
+        )
 
     def __init__(self):
         super().__init__(
@@ -35,7 +38,8 @@ class ShopifyUploadImageBlock(Block):
                 "image_url": "https://example.com/image.jpg"
             },
             test_output={
-                "image_name": "image.jpg"
+                "image_name": "image.jpg",
+                "image_id": ""
             }
         )
 
@@ -86,7 +90,8 @@ class ShopifyUploadImageBlock(Block):
                 raise Exception("Error uploading image: " + str(data))
             file_data = data["data"]["fileCreate"]["files"][0]
             return {
-                "image_name": file_data["alt"]
+                "image_name": file_data["alt"],
+                "image_id": file_data["id"]
             }
         else:
             raise Exception(f"Failed to upload image: {response.text}")
@@ -100,6 +105,7 @@ class ShopifyUploadImageBlock(Block):
             result = self.upload_image(shop_name, admin_api_key, image_url)
 
             yield "image_name", result["image_name"]
+            yield "image_id", result["image_id"]
         except Exception as e:
             yield "error", f"An error occurred: {e}"
 
@@ -147,25 +153,25 @@ class ShopifyThemeInstallBlock(Block):
         )
 
     @staticmethod
-    def install_theme(theme_link: str, shop_name: str, admin_api_key: str) -> dict:
+    def install_theme(theme_link: str, shop_name: str) -> dict:
 
         """Install a theme using the Shopify GraphQL API."""
 
         # GraphQL mutation to install the theme
         query = """
             mutation themeCreate($source: URL!, $name: String!) {
-                    themeCreate(source: $source, name: $name) {
-                        theme {
-                        id
-                        name
-                        role
-                        }
-                        userErrors {
-                        field
-                        message
-                        }
+                themeCreate(source: $source, name: $name) {
+                    theme {
+                    id
+                    name
+                    role
+                    }
+                    userErrors {
+                    field
+                    message
                     }
                 }
+            }
         """
 
         params = {
@@ -215,7 +221,7 @@ class ShopifyThemeInstallBlock(Block):
             shopify.ShopifyResource.activate_session(session)
 
             # Call the install_theme method with the extracted input data
-            result = self.install_theme(theme_link, shop_name, admin_api_key)
+            result = self.install_theme(theme_link, shop_name)
 
             yield "shop_name", result["shop_name"]
             yield "theme_id", result["theme_id"]
