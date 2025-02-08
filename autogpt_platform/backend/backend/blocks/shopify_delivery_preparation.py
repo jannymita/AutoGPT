@@ -66,6 +66,8 @@ class ShopifyDeliveryPreparationBlock(Block):
         except Exception as e:
             # Handle unexpected errors
             yield "error", f"An unexpected error occurred: {e}"
+        finally:
+            shopify.ShopifyResource.clear_session()
 
     def get_markets(self) -> list[Any]:
         query = "query AllMarkets {  markets(first: 100) {    nodes {      id      handle      name      enabled    }  }}"

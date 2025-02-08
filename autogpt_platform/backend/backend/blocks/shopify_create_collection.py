@@ -8,7 +8,7 @@ class CreateCollectionBlock(Block):
     class Input(BlockSchema):
         shop_name: str = SchemaField(description="The Shopify store name")
         admin_api_key: str = SchemaField(description="The API key of the Shopify store")
-        collection_data: dict = SchemaField(description="The data to create the collection")
+        collection_data: dict = SchemaField(description="The data to create the collection", default={})
 
     class Output(BlockSchema):
         collection_ids: dict = SchemaField(description="A dictionary of collection IDs")
@@ -24,74 +24,40 @@ class CreateCollectionBlock(Block):
                 "shop_name": "your-shop-name.myshopify.com",
                 "admin_api_key": "your-admin-api-key",
                 "collection_data": {
-                    "collection_rznnLq": {
-                        "type": "collection",
-                        "settings": {
-                            "collection": "men",
-                            "title": "Men's Clothing"
-                        }
-                    },
-                    "collection_KdHXk9": {
-                        "type": "collection",
-                        "settings": {
-                            "collection": "women",
-                            "title": "Women's Clothing"
-                        }
+                    "men": {
+                        "Men's Clothing"
                     }
                 },
             },
             test_output={
                 "collection_ids": {
-                    "collection_rznnLq": "123456789",
-                    "collection_KdHXk9": "987654321"
+                    "men": "123456789",
                 },
             },
         )
 
-    @staticmethod
-    def validate_input_data(collection_data):
-        """Validate the required input data for creating collections."""
-        for key, collection in collection_data.items():
-            if not collection.get("settings", {}).get("collection"):
-                raise ValueError(f"Collection '{key}' must have a 'collection' field.")
-            
-
+    DEFAULT_COLLECTIONS = ["all", "latest", "trending"]
     def create_smart_collection(self, collection_data):
-        """Create smart collections based on tag conditions using Shopify GraphQL API."""
-
-        print("Creating smart collections...")
         collection_ids = {}
 
-        new_collections = [
-        {"key": "collection_HotDeals", "collection": "hot-deals", "title": "Hot Deals"},
-        {"key": "collection_Trending", "collection": "trending", "title": "Trending"},
-        {"key": "collection_NewComing", "collection": "new-coming", "title": "New Coming"},
-        {"key": "collection_Featured", "collection": "featured", "title": "Featured"},
-        {"key": "collection_Discover", "collection": "discover", "title": "Discover"}
-        ]
-
-        for new_collection in new_collections:
-            collection_data[new_collection["key"]] = {
-                "type": "collection",
-                "settings": {
-                    "collection": new_collection["collection"],
-                    "title": new_collection["title"]
+        for collection_name in self.DEFAULT_COLLECTIONS:
+            if collection_name not in collection_data:
+                collection_data[collection_name] = {
+                    "title": collection_name.capitalize()
                 }
-            }
 
-        for collection_key, collection in collection_data.items():
-            settings = collection.get("settings", {})
-            collection_title = settings.get("title", "") or settings.get("collection", "")
+        for collection_name, collection in collection_data.items():
+            collection_title = collection.get("title")
 
             # Construct the GraphQL query for creating the Smart Collection
             query = """
             mutation CollectionCreate($input: CollectionInput!) {
-                    collectionCreate(input: $input) {
-                        userErrors {
+                collectionCreate(input: $input) {
+                    userErrors {
                         field
                         message
-                        }
-                        collection {
+                    }
+                    collection {
                         id
                         title
                         descriptionHtml
@@ -105,9 +71,9 @@ class CreateCollectionBlock(Block):
                             condition
                             }
                         }
-                        }
                     }
                 }
+            }
             """
 
             params = {
@@ -119,7 +85,7 @@ class CreateCollectionBlock(Block):
                         "rules": {
                             "column": "TAG",
                             "relation": "EQUALS",
-                            "condition": collection_title.lower()
+                            "condition": collection_name.lower()
                             }
                         }
                     }
@@ -133,37 +99,30 @@ class CreateCollectionBlock(Block):
                 # Check for errors in the response
                 if 'data' in response and 'collectionCreate' in response['data']:
                     created_collection = response['data']['collectionCreate']['collection']
-                    collection_ids[collection_key] = created_collection['id']
+                    collection_ids[collection_name] = created_collection['id']
                 else:
                     errors = response.get('userErrors', [])
                     if errors:
-                        raise ValueError(f"Error creating collection '{collection_key}': {errors}")
+                        raise ValueError(f"Error creating collection '{collection_name}': {errors}")
                     else:
-                        raise ValueError(f"Unknown error creating collection '{collection_key}'")
+                        raise ValueError(f"Unknown error creating collection '{collection_name}'")
 
             except Exception as e:
-                raise ValueError(f"Error executing GraphQL request for collection '{collection_key}': {str(e)}")
+                raise ValueError(f"Error executing GraphQL request for collection '{collection_name}': {str(e)}")
 
         return collection_ids
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
         """Run the block with the provided input data."""
         try:
-
             # Set up the Shopify session
             shop_url = f"https://{input_data.shop_name}.myshopify.com"
             session = shopify.Session(shop_url, self.api_version, input_data.admin_api_key)
             shopify.ShopifyResource.activate_session(session)
-            # Validate the input data
-            self.validate_input_data(input_data.collection_data)
-
-            # Create the smart collections using tags and get the results
 
             collection_ids = self.create_smart_collection(input_data.collection_data)
 
             publications = self.get_publications()
-
-            print(f"Publications: {publications}")
 
             for collection_id in collection_ids.values():
                 for publication in publications:
@@ -182,8 +141,8 @@ class CreateCollectionBlock(Block):
                         # Handle any errors during the publishing process
                         print(f"Error publishing collection {collection_id} to publication {publication_id}: {str(e)}")
 
-                        # Yield the collection IDs and handles as output
-                        yield "collection_ids", collection_ids
+            # Yield the collection IDs and handles as output
+            yield "collection_ids", collection_ids
 
         except ValueError as ve:
             # Handle validation errors

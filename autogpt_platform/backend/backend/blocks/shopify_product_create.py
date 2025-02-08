@@ -42,42 +42,48 @@ class ShopifyProductCreateBlock(Block):
 
 
     def run(self, input_data: Input, **kwargs) -> BlockOutput:
-        if os.getenv("DEBUG", "false").lower() == "true":
+        try:
+            if os.getenv("DEBUG", "false").lower() == "true":
+                yield "shop_name", input_data.shop_name
+                yield "products", []
+                return
+            
+            shop_url = f"https://{input_data.shop_name}.myshopify.com"
+            session = shopify.Session(
+                shop_url, 
+                self.api_version,
+                input_data.admin_api_key
+            )
+            shopify.ShopifyResource.activate_session(session)
+
+            location = self.get_location()
+            if not location:
+                raise ValueError("Could not find location")
+            
+            productIds = []
+            
+            products = self.parse_products(input_data.products)
+            for item in products:
+                product = self.create_product(item)
+                item["id"] = product["id"]
+
+                existing_variants = self.get_variants(product["id"])
+                self.update_product_variant_price(product["id"], existing_variants)
+                item["variants_created"] = self.create_variants(item, product, existing_variants)
+
+                inventory_items = self.get_inventory_items(product["id"])
+                item["inventory_items_tracked"] = self.track_inventory_items(inventory_items)
+                item["inventory_items_changes"] = self.update_inventory_items(inventory_items, location["id"], item["quantity_maps"])
+                productIds.append(product["id"])
+
             yield "shop_name", input_data.shop_name
-            yield "products", []
-            return
-        
-        shop_url = f"https://{input_data.shop_name}.myshopify.com"
-        session = shopify.Session(
-            shop_url, 
-            self.api_version,
-            input_data.admin_api_key
-        )
-        shopify.ShopifyResource.activate_session(session)
-
-        location = self.get_location()
-        if not location:
-            raise ValueError("Could not find location")
-        
-        productIds = []
-        
-        products = self.parse_products(input_data.products)
-        for item in products:
-            product = self.create_product(item)
-            item["id"] = product["id"]
-
-            existing_variants = self.get_variants(product["id"])
-            self.update_product_variant_price(product["id"], existing_variants)
-            item["variants_created"] = self.create_variants(item, product, existing_variants)
-
-            inventory_items = self.get_inventory_items(product["id"])
-            item["inventory_items_tracked"] = self.track_inventory_items(inventory_items)
-            item["inventory_items_changes"] = self.update_inventory_items(inventory_items, location["id"], item["quantity_maps"])
-            productIds.append(product["id"])
-
-        yield "shop_name", input_data.shop_name
-        yield "products", products
-        yield "productIds", productIds
+            yield "products", products
+            yield "productIds", productIds
+        except Exception as e:
+            # Handle unexpected errors
+            yield "error", f"An unexpected error occurred: {e}"
+        finally:
+            shopify.ShopifyResource.clear_session()
 
     def get_location(self) -> dict[str, str]:
         query = "query { locations(first: 1) { nodes { id name address { address1 city province country zip } isActive fulfillsOnlineOrders } } }"
@@ -100,7 +106,6 @@ class ShopifyProductCreateBlock(Block):
         products = {}
         
         for item in items: 
-
             title = item.get("Title", "")
             if not title: continue
 
@@ -139,6 +144,8 @@ class ShopifyProductCreateBlock(Block):
             products[title] = product
 
         for product in products.values():
+            if "all" not in product["tags"]:
+                product["tags"] = ["all"] + [tag.lower() for tag in product["tags"]]
             options = product["options"]
             product["options"] = []
             for key, values in options.items():
