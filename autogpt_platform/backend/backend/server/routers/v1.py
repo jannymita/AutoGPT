@@ -808,3 +808,11 @@ async def post_to_twitter(
 
     output = block.run(input_data=input)
     return output
+
+import backend.util.agent_shopify
+@v1_router.get("/store/owner")
+def claim_store(owner_id: Query(...)):
+    try:
+        return agent_shopify.claim_store(owner_id)
+    except requests.HTTPError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
